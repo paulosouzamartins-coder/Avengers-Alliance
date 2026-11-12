@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAA PvP Simulator</title>
+<style>
+:root{--bg:#0d1120;--panel:#161c33;--panel2:#1f2745;--line:#2e3862;--txt:#e9edf9;--mut:#93a0c6;--acc:#f5b82e;--t0:#3b82f6;--t1:#ef4444;
+--debuff:#ef4444;--buff:#22c55e;--prop:#3b82f6;--hp:#34d399;--st:#38bdf8;
+--c-Blaster:#f97316;--c-Bruiser:#22c55e;--c-Scrapper:#ef4444;--c-Infiltrator:#a855f7;--c-Tactician:#3b82f6;--c-Generalist:#9ca3af;--spd:1}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui,Segoe UI,Roboto,sans-serif}
+header{display:flex;gap:14px;align-items:center;padding:8px 16px;background:#090d1a;border-bottom:2px solid var(--acc);flex-wrap:wrap}
+header h1{margin:0;font-size:19px}header h1 span{color:var(--acc)}
+button,select,input{font:inherit;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--acc)}button:disabled{opacity:.4;cursor:not-allowed}
+button.on,button.primary{background:var(--acc);color:#111;border-color:var(--acc);font-weight:700}
+main{max-width:1500px;margin:auto;padding:12px 16px 40px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.hint{color:var(--mut);font-size:12px}
+.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;margin:1px 2px 1px 0;border:1px solid;white-space:nowrap}
+.chip.debuff{color:#fecaca;background:#4a1515;border-color:var(--debuff)}
+.chip.buff{color:#bbf7d0;background:#0f3b22;border-color:var(--buff)}
+.chip.prop{color:#bfdbfe;background:#12306a;border-color:var(--prop)}
+.chip.type{color:var(--mut);background:var(--panel2);border-color:var(--line)}
+/* arte com fallback */
+.art{position:relative;background:linear-gradient(160deg,var(--c,#555),#111);overflow:hidden;display:grid;place-items:center;color:#fff;font-weight:800;text-shadow:0 2px 4px #000}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.art span{position:relative;opacity:.9;text-align:center;padding:4px;font-size:12px}
+/* seleção */
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.team{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}.team h3{margin:0 0 6px;font-size:13px}.team.active{outline:2px solid var(--acc)}
+#tA h3{color:var(--t0)}#tB h3{color:var(--t1)}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.slot{height:110px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;color:var(--mut);cursor:pointer;position:relative;overflow:hidden}
+.slot .art{position:absolute;inset:0}.slot b{position:absolute;bottom:0;left:0;right:0;background:#000b;text-align:center;font-size:12px;padding:2px}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.hcard{background:var(--panel);border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer}
+.hcard:hover:not(.locked){border-color:var(--acc)}.hcard .art{height:150px}.hcard .info{padding:8px}.hcard .info small{display:block;color:var(--mut)}
+.hcard.locked{opacity:.5;cursor:not-allowed;filter:grayscale(.8)}
+.cls{display:inline-block;padding:0 8px;border-radius:10px;font-size:11px;font-weight:700;background:var(--c);color:#111}
+/* batalha */
+.order{display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:8px;overflow:auto}
+.order .o{width:46px;height:46px;border-radius:50%;overflow:hidden;border:3px solid var(--line);flex:none;position:relative}.order .o.t0{border-color:var(--t0)}.order .o.t1{border-color:var(--t1)}
+.order .o.cur{box-shadow:0 0 0 3px var(--acc),0 0 14px var(--acc);transform:scale(1.15)}.order .o.done{opacity:.35}.order .o.dead{display:none}.order .o .art{position:absolute;inset:0;font-size:10px}
+.order .lbl{color:var(--mut);font-size:12px;margin-right:6px;white-space:nowrap}
+.arena{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;border-radius:12px;border:1px solid var(--line);min-height:380px;overflow:hidden;
+ background:linear-gradient(180deg,#27315a 0%,#1a2140 58%,#10152b 58%,#0b0f20 100%)}
+.side{display:flex;gap:12px;justify-content:space-around;align-items:flex-end}
+.unit{position:relative;width:170px;background:#0b1024cc;border:3px solid transparent;border-radius:10px;overflow:hidden;transition:transform .2s}
+.unit.t0{border-bottom-color:var(--t0)}.unit.t1{border-bottom-color:var(--t1)}
+.unit .art{height:170px}.unit .meta{padding:5px 7px}.unit .nm{font-weight:700;font-size:13px}
+.bar{height:9px;background:#000a;border-radius:5px;overflow:hidden;margin:3px 0}.bar i{display:block;height:100%;transition:width .35s}
+.bar.hp i{background:var(--hp)}.bar.hp i.low{background:#f59e0b}.bar.hp i.crit{background:#ef4444}.bar.st i{background:var(--st)}
+.bt{font-size:10px;color:var(--mut);display:flex;justify-content:space-between}.fx{min-height:20px}
+.unit.cur{border-color:var(--acc);box-shadow:0 0 18px #f5b82e88}.unit.pick{outline:3px dashed var(--hp);cursor:pointer;animation:pulse 1s infinite}.unit.dead{opacity:.25;filter:grayscale(1)}
+.unit.shake{animation:shake .35s}.unit.lunge0{animation:lunge0 .5s}.unit.lunge1{animation:lunge1 .5s}
+.float{position:absolute;font-weight:900;font-size:26px;text-shadow:0 2px 4px #000;pointer-events:none;animation:up 1.1s ease-out forwards;transform:translate(-50%,-50%);z-index:5}
+.float.crit{font-size:36px;color:#ffd54a}.float.miss{font-size:16px;color:#cbd5e1}.float.heal{color:var(--hp)}.float.dot{color:#fb923c;font-size:20px}.float.txt{font-size:14px;color:#fff}.float.abs{color:var(--st);font-size:20px}
+@keyframes up{to{opacity:0;margin-top:-60px}}@keyframes pulse{50%{background:#143b2d}}
+@keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+@keyframes lunge0{40%{transform:translateX(90px)}}@keyframes lunge1{40%{transform:translateX(-90px)}}
+.winner{position:absolute;inset:0;background:#000c;display:grid;place-items:center;font-size:38px;font-weight:900;color:var(--acc);text-align:center;z-index:9}
+.bottom{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px;margin-top:10px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}.panel h3{margin:0 0 6px;font-size:13px;color:var(--acc)}
+.skills{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sk{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:6px;height:auto}
+.sk .art{width:56px;height:56px;border-radius:10px;font-size:9px}.sk b{font-size:12px}.sk .cost{font-size:11px;color:var(--st)}
+.sk.sel{border-color:var(--acc);background:#3a2e0d}.sk .why{font-size:10px;color:#fca5a5}
+#detail,#log{max-height:260px;overflow:auto;font-size:12px}#log div{padding:1px 0;border-bottom:1px solid #ffffff10}
+#log .dm{color:#fca5a5}#log .sy{color:var(--acc)}#log .ef{color:#c4b5fd}#log .df{font-weight:700}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px}.kv>*:nth-child(odd){color:var(--mut)}
+/* dados */
+.tabs button{margin-right:4px}.tw{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
+table{border-collapse:collapse;font-size:12px;width:max-content}th,td{border:1px solid var(--line);padding:4px 8px;vertical-align:top}th{position:sticky;top:0;background:var(--panel2)}td.n{text-align:right}td.pv{background:#4a3205}
+@media(max-width:1000px){.teams,.bottom,.arena{grid-template-columns:1fr}.skills{grid-template-columns:repeat(2,1fr)}.unit{width:30%;min-width:110px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>MAA <span>PvP Simulator</span></h1>
+  <nav><button data-v="sel" class="on">Seleção</button> <button data-v="bat">Batalha</button> <button data-v="dat">Dados</button></nav>
+  <span class="hint" id="ver"></span>
+</header>
+<main>
+  <section id="v-sel">
+    <div class="teams"><div class="team" id="tA"><h3>Equipe A</h3><div class="slots"></div></div><div class="team" id="tB"><h3>Equipe B</h3><div class="slots"></div></div></div>
+    <div class="row"><button id="bRand">Preencher aleatório</button><button id="bClear">Limpar</button><button id="bStart" class="primary" disabled>Iniciar batalha</button>
+      <span class="hint">Clique num herói para colocá-lo na equipe com vaga; clique no slot para remover. Heróis liberados podem se repetir (só há 2 liberados por enquanto).</span></div>
+    <div class="roster" id="roster"></div>
+  </section>
+
+  <section id="v-bat" hidden>
+    <div class="order" id="order"></div>
+    <div class="arena" id="arena"><div class="side" id="sideA"></div><div class="side" id="sideB"></div><div class="winner" id="winner" hidden></div></div>
+    <div class="bottom">
+      <div class="panel"><h3 id="turnTitle">Golpes</h3><div class="skills" id="skills"></div>
+        <div class="row"><button id="bPass">Passar turno</button><label class="hint"><input type="checkbox" id="fast"> animações rápidas</label><button id="bBack">Voltar à seleção</button></div></div>
+      <div class="panel"><h3>Detalhes</h3><div id="detail"><span class="hint">Passe o mouse sobre um golpe ou clique num herói.</span></div></div>
+      <div class="panel"><h3>Histórico</h3><div id="log"></div></div>
+    </div>
+  </section>
+
+  <section id="v-dat" hidden>
+    <div class="row tabs" id="datTabs"></div>
+    <div class="hint" id="datHint"></div>
+    <div class="tw"><table id="datTable"></table></div>
+    <button id="datCsv">Baixar esta tabela (CSV para Excel)</button>
+  </section>
+</main>
+
+<script id="data">
+/* ============================================================================
+   DADOS DO JOGO — tudo que é "conteúdo" fica aqui. A engine (abaixo) não tem nenhum número de herói/golpe.
+   Valores marcados "provisorio" NÃO vêm da wiki (ela não informa): são adaptações para o simulador funcionar
+   e devem ser reescritas por você. Dano null = "n/a" na wiki → conta como 0.
+   ============================================================================ */
+const DATA = {
+  versao: '0.2.0',
+  config: {
+    // Tier (barras da wiki) → valor. valor = base + passo × tier. ESCALA PRÓPRIA (adaptação).
+    tiers: { hp: { base: 1000, passo: 2000 }, atk: { base: 200, passo: 400 }, def: { base: 200, passo: 400 }, agi: { base: 0, passo: 20 } },
+    staminaInicial: 100,
+    staminaRecupera: 20,   // % por turno do herói (pedido)
+    danoCritico: 1.5,      // provisorio
+    danoMinimoPct: 10,     // dano nunca menor que 10% do bruto (provisorio)
+    hitMin: 5, hitMax: 100 // limites de chance de acerto (provisorio)
+  },
+  classes: {
+    Blaster: { vantagens: [], desvantagens: [] }, Bruiser: { vantagens: [], desvantagens: [] }, Scrapper: { vantagens: [], desvantagens: [] },
+    Infiltrator: { vantagens: [], desvantagens: [] }, Tactician: { vantagens: [], desvantagens: [] }, Generalist: { vantagens: [], desvantagens: [] }
+  },
+
+  /* ---------- BIBLIOTECA DE DEBUFFS (vermelho) e BUFFS (verde) ----------
+     Os golpes só citam o id. Mudou aqui = mudou em todos os heróis que usam.
+     duracao: turnos do portador (null = fica até ser removido). mods:
+       stat {stat:'atk|def|agi', pct}  · hitPts {pts} (muda o Hit% dos golpes de quem tem)
+       damageTaken {pct, tag?, single?, consume?}  · skillBoost {skills:[ids], dmgPct, hitPts, critPts} (por acúmulo) */
+  efeitos: {
+    lock_on: { nome: 'Lock-On', tipo: 'debuff', duracao: 3, desc: 'Recebe dano adicional de ataques à distância (Ranged).',
+      mods: [{ t: 'damageTaken', pct: 25, tag: 'Ranged' }], provisorio: ['mods.pct (a wiki não informa o %)'] },
+    burning: { nome: 'Burning', tipo: 'debuff', duracao: 2, desc: 'Sofre dano no início de cada turno e tem a Defesa reduzida. Cancelado por Chilled.',
+      dot: { pctVidaMax: 5 }, mods: [{ t: 'stat', stat: 'def', pct: -20 }], cancelaCom: ['chilled'], provisorio: ['dot.pctVidaMax', 'mods.pct'] },
+    dizzy: { nome: 'Dizzy', tipo: 'debuff', duracao: 3, desc: 'Precisão reduzida em 25% (aqui: -25 pontos no Hit% dos golpes do portador).',
+      mods: [{ t: 'hitPts', pts: -25 }], provisorio: ['interpretação de "-25%" como pontos'] },
+    target_focus: { nome: 'Target Focus', tipo: 'debuff', duracao: 2, desc: 'O próximo ataque de alvo único contra o portador causa dano extra (consumido ao acertar).',
+      mods: [{ t: 'damageTaken', pct: 25, single: true, consume: true }], provisorio: ['mods.pct', 'descrição inferida'] },
+    deflector_shield: { nome: 'Deflector Shield', tipo: 'buff', duracao: 2, desc: 'Escudo que absorve dano até acabar. Imune a Stun.',
+      escudo: { absorve: 1500 }, imune: ['Stun'], provisorio: ['escudo.absorve'] },
+    shield_guard: { nome: 'Shield Guard', tipo: 'buff', duracao: 1, desc: 'Protege os aliados de ataques de alvo único e em área (o portador recebe no lugar). Contra-ataca quem o atacar com Shield Bash.',
+      protege: true, contraGolpe: 'cap_shield_bash', provisorio: ['regra de proteção em área (adaptação)'] },
+    unibeam_focus: { nome: 'Unibeam Focus', tipo: 'buff', duracao: null, desc: 'Aumenta dano, precisão e crítico do Unibeam. Acumula até 3. Some se não for renovado a cada rodada.',
+      maxAcumulos: 3, renovaPorRodada: true, mods: [{ t: 'skillBoost', skills: ['im_unibeam'], dmgPct: 10, hitPts: 5, critPts: 5 }], provisorio: ['mods (por acúmulo)'] }
+  },
+
+  /* ---------- BIBLIOTECA DE PROPRIEDADES ESPECIAIS (azul) ---------- */
+  propriedades: {
+    quick_action: { nome: 'Quick Action', desc: 'Depois de usar o golpe o herói age de novo no mesmo turno (turno livre).', turnoLivre: true },
+    deadly_crits: { nome: 'Deadly Crits', desc: 'Críticos desse golpe causam dano maior que o normal.', danoCritico: 2.0, provisorio: ['danoCritico'] }
+  },
+
+  /* ---------- HERÓIS (somente forma base). tiers 1–6 vêm das barras da wiki: Health/Attack/Defense/Evasion(=agilidade) ---------- */
+  herois: [
+    { id: 'iron_man', nome: 'Iron Man', classe: 'Blaster', afiliacoes: ['Avengers', 'All-New, All-Different Avengers', 'Illuminati', 'S.H.I.E.L.D.', 'Guardians of the Galaxy', 'Hellfire Club', 'West Coast Avengers'],
+      tiers: { hp: 2, atk: 4, def: 4, agi: 2 }, passivas: [], golpes: ['im_repulsor_ray', 'im_missile_barrage', 'im_deflector_shield', 'im_unibeam'],
+      retrato: 'assets/portraits/iron_man.png', arte: 'assets/art/iron_man.png', fonte: 'https://avengersalliance.fandom.com/wiki/Iron_Man', bloqueado: false,
+      obs: 'Tiers lidos das barras (Bar01=cheia, 5 barras visíveis — a wiki mostrou 5, não 6). Stats brutos da wiki (nível 2): HP 117, Atk 29, Def 29, Acc 26, Eva 23. "Effects:" vazio na wiki. Dano dos golpes base = n/a na wiki → 0 (só o Ataque do herói causa dano).' },
+    { id: 'captain_america', nome: 'Captain America', classe: 'Tactician', afiliacoes: ['Avengers', 'Illuminati', 'S.H.I.E.L.D.', 'The Invaders', 'Secret Avengers'],
+      tiers: { hp: 3, atk: 3, def: 3, agi: 3 }, passivas: [], golpes: ['cap_shield_bash', 'cap_leading_strike', 'cap_shield_throw', 'cap_shield_guard'],
+      retrato: 'assets/portraits/captain_america.png', arte: 'assets/art/captain_america.png', fonte: 'https://avengersalliance.fandom.com/wiki/Captain_America', bloqueado: false,
+      obs: 'Tiers lidos das barras (3 em tudo). Stats brutos da wiki: HP 7153, Atk/Def/Acc/Eva 1431. "Effects:" vazio na wiki. Efeitos de Leading Strike (Target Focus) inferidos pela leitura da página.' },
+    { id: 'hulk', nome: 'Hulk', classe: 'Bruiser', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/hulk.png', arte: 'assets/art/hulk.png',
+      fonte: 'https://avengersalliance.fandom.com/wiki/Hulk', bloqueado: true, motivo: 'Página da wiki lida sem stats, afiliação nem golpes (texto truncado). Classe vem do seu pedido.', obs: '' },
+    { id: 'wolverine', nome: 'Wolverine', classe: 'Scrapper', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/wolverine.png', arte: 'assets/art/wolverine.png',
+      fonte: 'https://avengersalliance.fandom.com/wiki/Wolverine', bloqueado: true, motivo: 'Página da wiki não pôde ser acessada (erro). Classe vem do seu pedido.', obs: '' },
+    { id: 'spider_man', nome: 'Spider-Man', classe: 'Infiltrator', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/spider_man.png', arte: 'assets/art/spider_man.png',
+      fonte: 'https://avengersalliance.fandom.com/wiki/Spider_Man', bloqueado: true, motivo: 'Página da wiki não pôde ser acessada (erro). Classe vem do seu pedido.', obs: '' },
+    { id: 'beast', nome: 'Beast', classe: 'Generalist', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/beast.png', arte: 'assets/art/beast.png',
+      fonte: 'https://avengersalliance.fandom.com/wiki/Beast', bloqueado: true, motivo: 'Página da wiki lida sem stats, afiliação nem golpes (texto truncado). Classe vem do seu pedido.', obs: '' }
+  ],
+
+  /* ---------- GOLPES ----------
+     custo: % de stamina · alvo: enemy1 | enemyAll | ally1 | allyAll | self · dano: min/max (usa a média; null = n/a = 0)
+     aplica: quais efeitos da biblioteca o golpe coloca em cada grupo (enemy1, enemyAll, ally1, allyAll, self) — sem duração aqui. */
+  golpes: [
+    { id: 'im_repulsor_ray', heroi: 'iron_man', nome: 'Repulsor Ray', icone: 'assets/skills/repulsor_ray.jpg', custo: 16, alvo: 'enemy1', danoMin: null, danoMax: null, golpes: 2, hit: 88, crit: 11,
+      tipos: ['Ranged', 'Energy', 'Tech'], props: [], aplica: { enemy1: ['lock_on'] }, recarga: 0, obs: 'Dano n/a na wiki (base) → 0. Tipos/alvo lidos da página.' },
+    { id: 'im_missile_barrage', heroi: 'iron_man', nome: 'Missile Barrage', icone: 'assets/skills/missile_barrage.jpg', custo: 15, alvo: 'enemyAll', danoMin: null, danoMax: null, golpes: 1, hit: 88, crit: 11,
+      tipos: ['Ranged', 'Explosion', 'Tech'], props: [], aplica: { enemyAll: ['burning'] }, recarga: 0, obs: 'Dano n/a na wiki (base) → 0.' },
+    { id: 'im_deflector_shield', heroi: 'iron_man', nome: 'Deflector Shield', icone: 'assets/skills/deflector_shield.jpg', custo: 27, alvo: 'self', danoMin: null, danoMax: null, golpes: 0, hit: null, crit: null,
+      tipos: ['Buff', 'Tech'], props: ['quick_action'], aplica: { self: ['deflector_shield'] }, recarga: 2, obs: 'Não causa dano. Recarga 2 rodadas.' },
+    { id: 'im_unibeam', heroi: 'iron_man', nome: 'Unibeam', icone: 'assets/skills/unibeam.jpg', custo: 25, alvo: 'enemy1', danoMin: null, danoMax: null, golpes: 1, hit: 88, crit: 11,
+      tipos: ['Ranged', 'Energy', 'Tech', 'Unibeam'], props: ['deadly_crits'], aplica: { self: ['unibeam_focus'] }, recarga: 0, obs: 'Dano n/a na wiki (base) → 0. Unibeam Focus no próprio herói (nota de patch 2014).' },
+
+    { id: 'cap_shield_bash', heroi: 'captain_america', nome: 'Shield Bash', icone: 'assets/skills/shield_bash.jpg', custo: 18, alvo: 'enemy1', danoMin: 868, danoMax: 1388, golpes: 1, hit: 88, crit: 11,
+      tipos: ['Melee', 'Vibranium'], props: [], aplica: { enemy1: ['dizzy'] }, recarga: 0, obs: 'Dano médio = 1128.' },
+    { id: 'cap_leading_strike', heroi: 'captain_america', nome: 'Leading Strike', icone: 'assets/skills/leading_strike.jpg', custo: 10, alvo: 'enemy1', danoMin: 1066, danoMax: 1279, golpes: 1, hit: 92, crit: 11,
+      tipos: ['Melee', 'Unarmed'], props: [], aplica: { enemy1: ['target_focus'] }, recarga: 0, obs: 'Dano médio = 1172,5.' },
+    { id: 'cap_shield_throw', heroi: 'captain_america', nome: 'Shield Throw', icone: 'assets/skills/shield_throw.jpg', custo: 25, alvo: 'enemyAll', danoMin: 570, danoMax: 855, golpes: 1, hit: 94, crit: 12,
+      tipos: ['Ranged', 'Vibranium'], props: [], aplica: { enemyAll: ['lock_on'] }, recarga: 0, obs: 'Dano médio = 712,5.' },
+    { id: 'cap_shield_guard', heroi: 'captain_america', nome: 'Shield Guard', icone: 'assets/skills/shield_guard.jpg', custo: 15, alvo: 'self', danoMin: null, danoMax: null, golpes: 0, hit: null, crit: null,
+      tipos: ['Buff', 'Vibranium'], props: ['quick_action'], aplica: { self: ['shield_guard'] }, recarga: 2, obs: 'Não causa dano. Recarga 2 rodadas.' }
+  ]
+};
+</script>
+
+<script id="engine">
+/* ============================================================================
+   ENGINE — independente da interface e sem números de conteúdo. Recebe DATA e devolve eventos.
+   Regras: dano por golpe = max(10% do bruto, (Ataque do herói + dano do golpe por hit) − Defesa do alvo); acerto = Hit% do golpe;
+   ordem de turno por rodada = agilidade (empate sorteado); stamina +20% no início do turno do herói.
+   ============================================================================ */
+function createBattle(D, teams, opts) {
+  opts = opts || {};
+  const rng = opts.rng || Math.random, C = D.config;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const SK = {}; D.golpes.forEach((s) => { SK[s.id] = s; });
+  const tierVal = (k, t) => C.tiers[k].base + C.tiers[k].passo * t;
+  const units = [], events = [];
+  const B = { units, events, round: 0, order: [], idx: -1, current: null, phase: 'idle', winner: null, turnStamp: 0, SK };
+  const ev = (o) => { o.n = events.length; events.push(o); return o; };
+
+  const count = {}; teams.flat().forEach((id) => { count[id] = (count[id] || 0) + 1; });
+  const seen = {};
+  teams.forEach((team, ti) => team.forEach((hid, slot) => {
+    const h = D.herois.find((x) => x.id === hid);
+    if (!h) throw new Error('Herói inexistente: ' + hid);
+    if (h.bloqueado || !h.tiers) throw new Error('Herói bloqueado: ' + h.nome);
+    seen[hid] = (seen[hid] || 0) + 1;
+    const t = h.tiers, hp = tierVal('hp', t.hp);
+    units.push({ uid: 'u' + units.length, team: ti, slot, heroId: h.id, hero: h, name: h.nome + (count[hid] > 1 ? ' ' + seen[hid] : ''), cls: h.classe,
+      maxHp: hp, hp, base: { atk: tierVal('atk', t.atk), def: tierVal('def', t.def), agi: tierVal('agi', t.agi) },
+      stamina: C.staminaInicial, cd: {}, cdStamp: {}, effects: [], alive: true, skills: h.golpes.slice() });
+  }));
+
+  const alive = (t) => units.filter((u) => u.alive && (t == null || u.team === t));
+  const mods = (u, type) => { const r = []; u.effects.forEach((e) => (e.def.mods || []).forEach((m) => { if (m.t === type) r.push({ m, e }); })); return r; };
+  const stat = (u, k) => { let p = 0; mods(u, 'stat').forEach(({ m, e }) => { if (m.stat === k) p += m.pct * e.stacks; }); return u.base[k] * (1 + p / 100); };
+  const avgDmg = (sk) => (sk.danoMin == null || sk.danoMax == null ? 0 : (sk.danoMin + sk.danoMax) / 2);
+  const boost = (u, sk, key) => { let v = 0; mods(u, 'skillBoost').forEach(({ m, e }) => { if (m.skills.includes(sk.id)) v += (m[key] || 0) * e.stacks; }); return v; };
+  const hitChance = (u, sk) => { let c = sk.hit + boost(u, sk, 'hitPts'); mods(u, 'hitPts').forEach(({ m, e }) => { c += m.pts * e.stacks; }); return clamp(c, C.hitMin, C.hitMax); };
+  const critChance = (u, sk) => clamp(sk.crit + boost(u, sk, 'critPts'), 0, 100);
+  const critMult = (sk) => { let v = C.danoCritico; sk.props.forEach((p) => { if (D.propriedades[p] && D.propriedades[p].danoCritico) v = D.propriedades[p].danoCritico; }); return v; };
+  B.stat = stat; B.hitChance = hitChance; B.critChance = critChance; B.avgDmg = avgDmg;
+
+  function removeEffect(u, e, why) { const i = u.effects.indexOf(e); if (i >= 0) { u.effects.splice(i, 1); ev({ t: 'unfx', uid: u.uid, id: e.id, nome: e.def.nome, why }); } }
+  function applyEffect(u, id, src) {
+    const def = D.efeitos[id]; if (!def || !u.alive) return;
+    u.effects.slice().forEach((e) => { if ((e.def.cancelaCom || []).includes(id)) removeEffect(u, e, 'cancelado por ' + def.nome); });
+    let e = u.effects.find((x) => x.id === id);
+    if (e) { e.stacks = Math.min(def.maxAcumulos || 1, e.stacks + 1); e.remaining = def.duracao; e.stamp = B.turnStamp; e.refreshed = true; }
+    else { e = { id, def, stacks: 1, remaining: def.duracao, stamp: B.turnStamp, refreshed: true, shieldLeft: def.escudo ? def.escudo.absorve : null }; u.effects.push(e); }
+    if (def.escudo) e.shieldLeft = def.escudo.absorve;
+    ev({ t: 'fx', uid: u.uid, id, nome: def.nome, tipo: def.tipo, stacks: e.stacks, src: src ? src.uid : null });
+  }
+  function checkWin() {
+    const a = alive(0).length, b = alive(1).length;
+    if (a && b) return;
+    B.phase = 'ended'; B.winner = !a && !b ? -1 : !a ? 1 : 0; B.current = null; ev({ t: 'win', winner: B.winner });
+  }
+  function dealDamage(att, tgt, amount, info) {
+    let absorbed = 0;
+    tgt.effects.slice().forEach((e) => { if (e.shieldLeft != null && amount > 0) { const t = Math.min(amount, e.shieldLeft); e.shieldLeft -= t; amount -= t; absorbed += t; if (e.shieldLeft <= 0) removeEffect(tgt, e, 'escudo esgotado'); } });
+    tgt.hp = Math.max(0, tgt.hp - amount);
+    ev(Object.assign({ t: 'dmg', src: att ? att.uid : null, tgt: tgt.uid, amount, absorbed, hpAfter: tgt.hp }, info || {}));
+    if (tgt.hp <= 0 && tgt.alive) { tgt.alive = false; tgt.effects = []; ev({ t: 'defeat', uid: tgt.uid }); checkWin(); }
+  }
+  function resolveHit(att, tgt, sk) {
+    const chance = hitChance(att, sk);
+    if (!(rng() * 100 < chance)) { ev({ t: 'miss', src: att.uid, tgt: tgt.uid, chance }); return false; }
+    const crit = rng() * 100 < critChance(att, sk);
+    let raw = (stat(att, 'atk') + avgDmg(sk) / sk.golpes) * (1 + boost(att, sk, 'dmgPct') / 100);
+    let dmg = Math.max(raw * C.danoMinimoPct / 100, raw - stat(tgt, 'def'));
+    const single = sk.alvo === 'enemy1', consume = []; let taken = 0;
+    mods(tgt, 'damageTaken').forEach(({ m, e }) => { if (m.tag && !sk.tipos.includes(m.tag)) return; if (m.single && !single) return; taken += m.pct * e.stacks; if (m.consume) consume.push(e); });
+    dmg *= 1 + taken / 100; if (crit) dmg *= critMult(sk);
+    dealDamage(att, tgt, Math.max(1, Math.round(dmg)), { crit, skill: sk.id });
+    consume.forEach((e) => removeEffect(tgt, e, 'consumido'));
+    return true;
+  }
+  function executeSkill(u, sk, targets, ctx) {
+    ev({ t: 'skill', src: u.uid, skill: sk.id, nome: sk.nome, targets: targets.map((x) => x.uid), counter: !!ctx.counter });
+    const hostile = sk.alvo === 'enemy1' || sk.alvo === 'enemyAll', dmgSkill = hostile && sk.golpes > 0, landed = {};
+    if (dmgSkill) targets.forEach((tg) => { for (let i = 0; i < sk.golpes; i++) { if (!tg.alive) break; if (resolveHit(u, tg, sk)) landed[tg.uid] = (landed[tg.uid] || 0) + 1; } });
+    const ap = sk.aplica || {};
+    if (hostile) targets.forEach((tg) => { if (tg.alive && (!dmgSkill || landed[tg.uid])) (ap[sk.alvo] || []).forEach((id) => applyEffect(tg, id, u)); });
+    else if (sk.alvo === 'ally1' || sk.alvo === 'allyAll') targets.forEach((tg) => (ap[sk.alvo] || []).forEach((id) => applyEffect(tg, id, u)));
+    (ap.self || []).forEach((id) => applyEffect(u, id, u));
+    if (hostile && !ctx.counter) targets.forEach((r) => {
+      if (!r.alive || !u.alive) return;
+      r.effects.filter((e) => e.def.contraGolpe).forEach((e) => { const cs = SK[e.def.contraGolpe]; if (cs && u.alive) { ev({ t: 'counter', src: r.uid, tgt: u.uid, nome: cs.nome }); executeSkill(r, cs, [u], { counter: true }); } });
+    });
+  }
+  function protector(team, except) { return alive(team).find((x) => x !== except && x.effects.some((e) => e.def.protege)); }
+  function validTargets(u, sk) {
+    if (sk.alvo === 'enemy1') return alive(1 - u.team).map((x) => x.uid);
+    if (sk.alvo === 'ally1') return alive(u.team).map((x) => x.uid);
+    return [];
+  }
+  function resolveTargets(u, sk, pick) {
+    const find = (id) => units.find((x) => x.uid === id);
+    switch (sk.alvo) {
+      case 'self': return [u];
+      case 'allyAll': return alive(u.team);
+      case 'ally1': return [find(pick)];
+      case 'enemy1': { let t = find(pick); const p = protector(t.team, t); if (p) { ev({ t: 'protect', uid: p.uid, tgt: t.uid }); t = p; } return [t]; }
+      case 'enemyAll': { const es = alive(1 - u.team), p = protector(1 - u.team); if (p) { ev({ t: 'protect', uid: p.uid, tgt: null }); return es.filter((x) => x === p || !x.effects.some(() => false) && x.team !== p.team); } return es; }
+    }
+    return [];
+  }
+  B.options = function () {
+    const u = B.current; if (!u) return [];
+    return u.skills.map((id) => {
+      const sk = SK[id]; let reason = null;
+      if (u.stamina < sk.custo) reason = 'Stamina insuficiente (precisa de ' + sk.custo + '%)';
+      else if ((u.cd[id] || 0) > 0) reason = 'Em recarga: ' + u.cd[id] + ' rodada(s)';
+      const valid = validTargets(u, sk);
+      if (!reason && (sk.alvo === 'enemy1' || sk.alvo === 'ally1') && !valid.length) reason = 'Sem alvos válidos';
+      return { skill: sk, ok: !reason, reason, needsPick: sk.alvo === 'enemy1' || sk.alvo === 'ally1', valid };
+    });
+  };
+  function endTurn(u) {
+    Object.keys(u.cd).forEach((k) => { if (u.cd[k] > 0 && u.cdStamp[k] !== B.turnStamp) u.cd[k]--; });
+    u.effects.slice().forEach((e) => { if (e.remaining != null && e.stamp !== B.turnStamp) { e.remaining--; if (e.remaining <= 0) removeEffect(u, e, 'expirou'); } });
+    B.phase = 'idle'; B.current = null;
+  }
+  B.act = function (skillId, targetUid) {
+    if (B.phase !== 'action') throw new Error('Não é possível agir agora (fora do momento correto).');
+    const u = B.current, opt = B.options().find((o) => o.skill.id === skillId);
+    if (!opt) throw new Error('Esse golpe não pertence ao herói ativo.');
+    if (!opt.ok) throw new Error(opt.reason);
+    if (opt.needsPick && !opt.valid.includes(targetUid)) throw new Error('Alvo inválido.');
+    const start = events.length, sk = opt.skill;
+    u.stamina -= sk.custo; ev({ t: 'stamina', uid: u.uid, value: u.stamina });
+    if (sk.recarga > 0) { u.cd[sk.id] = sk.recarga; u.cdStamp[sk.id] = B.turnStamp; }
+    executeSkill(u, sk, resolveTargets(u, sk, targetUid), {});
+    if (B.phase === 'ended') return events.slice(start);
+    const free = u.alive && sk.props.some((p) => D.propriedades[p] && D.propriedades[p].turnoLivre);
+    if (free && B.options().some((o) => o.ok)) { ev({ t: 'free', uid: u.uid }); return events.slice(start); }
+    endTurn(u); B.next(); return events.slice(start);
+  };
+  B.pass = function () {
+    if (B.phase !== 'action') throw new Error('Não é possível agir agora.');
+    const start = events.length; ev({ t: 'pass', uid: B.current.uid }); endTurn(B.current); B.next(); return events.slice(start);
+  };
+  function newRound() {
+    B.round++;
+    B.order = alive().map((u) => ({ u, k: stat(u, 'agi') + rng() * 1 })).sort((a, b) => b.k - a.k).map((x) => x.u);
+    B.idx = -1; ev({ t: 'round', n: B.round, order: B.order.map((u) => u.uid) });
+  }
+  function endRound() {
+    alive().forEach((u) => u.effects.slice().forEach((e) => { if (e.def.renovaPorRodada) { if (!e.refreshed) removeEffect(u, e, 'não renovado na rodada'); else e.refreshed = false; } }));
+  }
+  B.next = function () {
+    if (B.phase === 'ended') return;
+    if (B.phase === 'action') throw new Error('O herói ativo ainda precisa agir.');
+    for (let guard = 0; guard < 100; guard++) {
+      if (B.idx + 1 >= B.order.length) { if (B.round > 0) endRound(); newRound(); }
+      const u = B.order[++B.idx]; if (!u.alive) continue;
+      B.turnStamp++; B.current = u;
+      u.stamina = Math.min(100, u.stamina + C.staminaRecupera); ev({ t: 'turn', uid: u.uid, round: B.round, stamina: u.stamina });
+      u.effects.slice().forEach((e) => { if (e.def.dot && u.alive) dealDamage(null, u, Math.max(1, Math.round(u.maxHp * e.def.dot.pctVidaMax / 100) * e.stacks), { dot: e.def.nome }); });
+      if (B.phase === 'ended') return;
+      if (u.alive) { B.phase = 'action'; return; }
+      B.current = null;
+    }
+  };
+  B.runAuto = function (maxActions) {
+    let n = 0;
+    while (B.phase === 'action' && n++ < (maxActions || 2000)) {
+      const ok = B.options().filter((o) => o.ok);
+      if (!ok.length) { B.pass(); continue; }
+      const o = ok[Math.floor(rng() * ok.length)];
+      B.act(o.skill.id, o.needsPick ? o.valid[Math.floor(rng() * o.valid.length)] : null);
+    }
+    return B.winner;
+  };
+  B.next();
+  return B;
+}
+</script>
+
+<script id="ui">
+(function () {
+  if (typeof document === 'undefined') return;
+  const D = DATA, $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const H = (id) => D.herois.find((h) => h.id === id);
+  const SKM = {}; D.golpes.forEach((s) => { SKM[s.id] = s; });
+  $('#ver').textContent = 'v' + D.versao;
+
+  /* imagem com fallback: se o arquivo não existir em assets/, mostra um bloco colorido com o nome */
+  function art(src, label, cls) {
+    const d = el('div', 'art ' + (cls || '')); d.style.setProperty('--c', 'var(--c-' + (label.cls || 'Generalist') + ')');
+    d.innerHTML = '<span>' + esc(label.text) + '</span>';
+    if (src) { const i = new Image(); i.alt = ''; i.onerror = () => i.remove(); i.src = src; d.appendChild(i); }
+    return d;
+  }
+  const chip = (txt, kind, title) => '<span class="chip ' + kind + '" title="' + esc(title || '') + '">' + esc(txt) + '</span>';
+  const fxChip = (id) => { const e = D.efeitos[id]; return chip(e.nome, e.tipo, e.desc + (e.duracao ? ' (' + e.duracao + ' turnos)' : '')); };
+  const propChip = (id) => chip(D.propriedades[id].nome, 'prop', D.propriedades[id].desc);
+
+  /* ---------- navegação ---------- */
+  function view(v) { ['sel', 'bat', 'dat'].forEach((x) => { $('#v-' + x).hidden = x !== v; }); $$('header nav button').forEach((b) => b.classList.toggle('on', b.dataset.v === v)); if (v === 'dat') renderData(); }
+  $$('header nav button').forEach((b) => (b.onclick = () => view(b.dataset.v)));
+
+  /* ---------- seleção ---------- */
+  const teams = [[], []];
+  const activeTeam = () => (teams[0].length < 3 ? 0 : teams[1].length < 3 ? 1 : -1);
+  function renderSel() {
+    [['#tA', 0], ['#tB', 1]].forEach(([s, t]) => {
+      const box = $(s + ' .slots'); box.innerHTML = '';
+      for (let i = 0; i < 3; i++) {
+        const id = teams[t][i], h = id && H(id), d = el('div', 'slot', h ? '' : 'vazio');
+        if (h) { d.appendChild(art(h.retrato, { text: h.nome, cls: h.classe })); d.appendChild(el('b', '', esc(h.nome))); d.onclick = () => { teams[t].splice(i, 1); renderSel(); }; }
+        box.appendChild(d);
+      }
+      $(s).classList.toggle('active', activeTeam() === t);
+    });
+    $('#bStart').disabled = !(teams[0].length === 3 && teams[1].length === 3);
+    const r = $('#roster'); r.innerHTML = '';
+    D.herois.forEach((h) => {
+      const c = el('div', 'hcard' + (h.bloqueado ? ' locked' : ''));
+      c.appendChild(art(h.arte, { text: h.nome, cls: h.classe }));
+      const inf = el('div', 'info', '<b>' + esc(h.nome) + '</b> <span class="cls" style="--c:var(--c-' + h.classe + ')">' + h.classe + '</span><small>' + (h.afiliacoes.length ? esc(h.afiliacoes.slice(0, 3).join(', ')) + (h.afiliacoes.length > 3 ? '…' : '') : 'afiliação: pendente') + '</small>' + (h.bloqueado ? '<small>🔒 ' + esc(h.motivo) + '</small>' : ''));
+      c.appendChild(inf);
+      if (!h.bloqueado) c.onclick = () => { const t = activeTeam(); if (t < 0) return; teams[t].push(h.id); renderSel(); };
+      r.appendChild(c);
+    });
+  }
+  const free = () => D.herois.filter((h) => !h.bloqueado).map((h) => h.id);
+  $('#bRand').onclick = () => { const f = free(); teams[0] = []; teams[1] = []; for (let i = 0; i < 3; i++) { teams[0].push(f[Math.floor(Math.random() * f.length)]); teams[1].push(f[Math.floor(Math.random() * f.length)]); } renderSel(); };
+  $('#bClear').onclick = () => { teams[0] = []; teams[1] = []; renderSel(); };
+
+  /* ---------- batalha ---------- */
+  let B = null, busy = false, picking = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms * ($('#fast').checked ? 0.3 : 1)));
+  const U = (uid) => B.units.find((u) => u.uid === uid);
+  const node = (uid) => $('#arena [data-uid="' + uid + '"]');
+  const shown = {};
+
+  $('#bStart').onclick = () => {
+    B = createBattle(D, [teams[0].slice(), teams[1].slice()]); window.__battle = B;
+    B.units.forEach((u) => { shown[u.uid] = { hp: u.hp, st: u.stamina }; });
+    $('#winner').hidden = true; $('#log').innerHTML = ''; picking = null;
+    buildArena(); logEvents(B.events); refresh(); view('bat');
+  };
+  $('#bBack').onclick = () => view('sel');
+  $('#bPass').onclick = async () => { if (busy || !B || B.phase !== 'action') return; await run(() => B.pass()); };
+
+  function buildArena() {
+    ['A', 'B'].forEach((s, t) => {
+      const side = $('#side' + s); side.innerHTML = '';
+      B.units.filter((u) => u.team === t).forEach((u) => {
+        const d = el('div', 'unit t' + t); d.dataset.uid = u.uid;
+        d.appendChild(art(u.hero.arte, { text: u.name, cls: u.cls }));
+        d.appendChild(el('div', 'meta', '<div class="nm">' + esc(u.name) + '</div><div class="bar hp"><i></i></div><div class="bt"><span class="h"></span><span>HP</span></div><div class="bar st"><i></i></div><div class="bt"><span class="s"></span><span>Stamina</span></div><div class="fx"></div>'));
+        d.onclick = () => onUnit(u.uid); side.appendChild(d);
+      });
+    });
+  }
+  function refresh() {
+    B.units.forEach((u) => {
+      const d = node(u.uid), v = shown[u.uid], p = v.hp / u.maxHp * 100;
+      const bar = $('.hp i', d); bar.style.width = p + '%'; bar.className = p < 25 ? 'crit' : p < 50 ? 'low' : '';
+      $('.h', d).textContent = Math.round(v.hp) + ' / ' + u.maxHp; $('.st i', d).style.width = v.st + '%'; $('.s', d).textContent = Math.round(v.st) + '%';
+      $('.fx', d).innerHTML = u.effects.map((e) => { const x = e.def; return chip(x.nome + (e.stacks > 1 ? ' ×' + e.stacks : '') + (e.remaining != null ? ' ' + e.remaining : ''), x.tipo, x.desc); }).join('');
+      d.classList.toggle('cur', B.current === u); d.classList.toggle('dead', !u.alive);
+    });
+    // ordem de turnos da rodada
+    const o = $('#order'); o.innerHTML = '<span class="lbl">Rodada ' + B.round + ' — ordem por agilidade:</span>';
+    B.order.forEach((u, i) => { const n = el('div', 'o t' + u.team + (B.current === u ? ' cur' : i < B.idx || (i === B.idx && B.current !== u) ? ' done' : '') + (u.alive ? '' : ' dead')); n.title = u.name + ' (agi ' + Math.round(B.stat(u, 'agi')) + ')'; n.appendChild(art(u.hero.retrato, { text: u.name.split(' ')[0], cls: u.cls })); o.appendChild(n); });
+    renderSkills();
+  }
+  function renderSkills() {
+    const box = $('#skills'); box.innerHTML = ''; picking = null; $$('.unit.pick').forEach((x) => x.classList.remove('pick'));
+    if (B.phase === 'ended') { $('#turnTitle').textContent = 'Batalha encerrada'; $('#bPass').disabled = true; return; }
+    const u = B.current; $('#turnTitle').textContent = 'Vez de ' + u.name + ' — escolha um golpe'; $('#bPass').disabled = busy;
+    B.options().forEach((o) => {
+      const s = o.skill, b = el('button', 'sk');
+      b.disabled = !o.ok || busy; b.appendChild(art(s.icone, { text: s.nome, cls: u.cls }));
+      b.appendChild(el('b', '', esc(s.nome))); b.appendChild(el('span', 'cost', s.custo + '% stamina' + (s.recarga ? ' · recarga ' + s.recarga : '')));
+      if (o.reason) b.appendChild(el('span', 'why', esc(o.reason)));
+      b.onmouseenter = () => skillDetail(s); b.onclick = () => choose(o); box.appendChild(b);
+    });
+  }
+  const ALVO = { enemy1: '1 inimigo', enemyAll: 'todos os inimigos', ally1: '1 aliado', allyAll: 'todos os aliados', self: 'si próprio' };
+  function skillDetail(s) {
+    const ap = s.aplica || {}, G = { enemy1: '1 inimigo', enemyAll: 'Todos os inimigos', ally1: '1 aliado', allyAll: 'Todos os aliados', self: 'Si próprio' };
+    const dmg = s.danoMin == null ? 'n/a (0)' : (s.danoMin + '–' + s.danoMax + ' → média ' + (s.danoMin + s.danoMax) / 2);
+    $('#detail').innerHTML = '<b>' + esc(s.nome) + '</b><div class="kv"><span>Stamina</span><span>' + s.custo + '%</span><span>Alvo</span><span>' + ALVO[s.alvo] + '</span><span>Dano total</span><span>' + dmg + '</span><span>Nº de golpes</span><span>' + s.golpes + '</span><span>Hit / Crit</span><span>' + (s.hit == null ? '—' : s.hit + '% / ' + s.crit + '%') + '</span><span>Recarga</span><span>' + (s.recarga || '—') + '</span><span>Tipos</span><span>' + s.tipos.map((t) => chip(t, 'type')).join('') + '</span><span>Propriedades</span><span>' + (s.props.map(propChip).join('') || '—') + '</span></div>' +
+      Object.keys(ap).map((g) => '<div>' + G[g] + ': ' + ap[g].map(fxChip).join('') + '</div>').join('') + '<p class="hint">' + esc(s.obs) + '</p>';
+  }
+  function onUnit(uid) {
+    if (picking && picking.valid.includes(uid)) { const o = picking; picking = null; run(() => B.act(o.skill.id, uid)); return; }
+    const u = U(uid), st = (k) => Math.round(B.stat(u, k));
+    $('#detail').innerHTML = '<b>' + esc(u.name) + '</b> <span class="cls" style="--c:var(--c-' + u.cls + ')">' + u.cls + '</span><div class="kv"><span>HP</span><span>' + Math.round(u.hp) + ' / ' + u.maxHp + '</span><span>Ataque</span><span>' + st('atk') + '</span><span>Defesa</span><span>' + st('def') + '</span><span>Agilidade</span><span>' + st('agi') + '</span><span>Afiliações</span><span>' + (esc(u.hero.afiliacoes.join(', ')) || 'pendente') + '</span><span>Efeitos</span><span>' + (u.effects.map((e) => fxChip(e.id)).join('') || '—') + '</span></div>';
+  }
+  function choose(o) {
+    if (busy) return;
+    if (!o.needsPick) return run(() => B.act(o.skill.id, null));
+    picking = o; $$('#skills .sk').forEach((b) => b.classList.remove('sel')); skillDetail(o.skill);
+    $$('.unit').forEach((d) => d.classList.toggle('pick', o.valid.includes(d.dataset.uid)));
+  }
+
+  function floater(uid, text, cls) { const d = node(uid); if (!d) return; const a = $('#arena').getBoundingClientRect(), r = d.getBoundingClientRect(); const f = el('div', 'float ' + (cls || ''), esc(text)); f.style.left = r.left - a.left + r.width / 2 + (Math.random() * 30 - 15) + 'px'; f.style.top = r.top - a.top + 50 + 'px'; $('#arena').appendChild(f); setTimeout(() => f.remove(), 1200); }
+  function anim(uid, c, ms) { const d = node(uid); if (!d) return Promise.resolve(); d.classList.remove(c); void d.offsetWidth; d.classList.add(c); return sleep(ms).then(() => d.classList.remove(c)); }
+  function logEvents(evs) {
+    const box = $('#log'), nm = (id) => (id && U(id) ? U(id).name : '?');
+    evs.forEach((e) => {
+      let t = null, c = '';
+      switch (e.t) {
+        case 'round': t = '=== Rodada ' + e.n + ' ===  ' + e.order.map(nm).join(' › '); c = 'sy'; break;
+        case 'turn': t = 'Vez de ' + nm(e.uid); c = 'sy'; break;
+        case 'skill': t = nm(e.src) + (e.counter ? ' contra-ataca com ' : ' usa ') + e.nome; break;
+        case 'dmg': t = e.dot ? nm(e.tgt) + ' sofre ' + e.amount + ' de ' + e.dot : nm(e.tgt) + ' sofre ' + e.amount + (e.crit ? ' (CRÍTICO)' : '') + (e.absorbed ? ' (' + e.absorbed + ' absorvido)' : ''); c = 'dm'; break;
+        case 'miss': t = nm(e.src) + ' erra ' + nm(e.tgt) + ' (' + e.chance + '%)'; break;
+        case 'fx': t = nm(e.uid) + ' ← ' + e.nome + (e.stacks > 1 ? ' ×' + e.stacks : ''); c = 'ef'; break;
+        case 'unfx': t = nm(e.uid) + ' perde ' + e.nome + ' (' + e.why + ')'; c = 'ef'; break;
+        case 'protect': t = nm(e.uid) + ' protege os aliados'; c = 'sy'; break;
+        case 'counter': t = nm(e.src) + ' reage: ' + e.nome; c = 'sy'; break;
+        case 'free': t = nm(e.uid) + ' ganha ação livre (Quick Action)'; c = 'sy'; break;
+        case 'pass': t = nm(e.uid) + ' passa o turno'; break;
+        case 'defeat': t = nm(e.uid) + ' foi derrotado!'; c = 'df'; break;
+        case 'win': t = e.winner < 0 ? 'Empate!' : 'Equipe ' + 'AB'[e.winner] + ' venceu!'; c = 'df'; break;
+      }
+      if (t) box.appendChild(el('div', c, esc(t)));
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+  async function run(fn) {
+    busy = true; $$('.unit.pick').forEach((x) => x.classList.remove('pick'));
+    let evs; try { evs = fn(); } catch (err) { logEvents([]); $('#log').appendChild(el('div', 'dm', 'Recusado: ' + esc(err.message))); busy = false; renderSkills(); return; }
+    for (const e of evs) {
+      logEvents([e]);
+      if (e.t === 'skill') { await anim(e.src, 'lunge' + U(e.src).team, 450); }
+      else if (e.t === 'dmg') { shown[e.tgt].hp = e.hpAfter; floater(e.tgt, e.amount ? '-' + e.amount : 'ABS', e.dot ? 'dot' : e.crit ? 'crit' : e.amount ? '' : 'abs'); if (!e.dot) anim(e.tgt, 'shake', 350); refresh(); await sleep(260); }
+      else if (e.t === 'miss') { floater(e.tgt, 'ERROU', 'miss'); await sleep(250); }
+      else if (e.t === 'fx') { floater(e.uid, e.nome, 'txt'); refresh(); await sleep(120); }
+      else if (e.t === 'stamina') { shown[e.uid].st = e.value; refresh(); }
+      else if (e.t === 'turn') { shown[e.uid].st = e.stamina; }
+      else if (e.t === 'win') { await sleep(300); const w = $('#winner'); w.hidden = false; w.innerHTML = e.winner < 0 ? 'EMPATE' : 'VITÓRIA<br>EQUIPE ' + 'AB'[e.winner]; }
+    }
+    B.units.forEach((u) => { shown[u.uid].hp = u.hp; shown[u.uid].st = u.stamina; });
+    busy = false; refresh();
+  }
+
+  /* ---------- dados (leitura das tabelas) ---------- */
+  let tab = 'herois';
+  const kv = (o) => Object.entries(o || {}).map(([k, v]) => k + ': ' + v.join(',')).join(' | ');
+  const TABLES = {
+    herois: { nome: 'Heróis', hint: 'Tiers (1–6) vêm das barras da wiki; valores = escala própria (config.tiers).', rows: () => {
+      const hd = ['ID', 'Nome', 'Classe', 'Afiliações', 'Tier HP', 'Tier ATK', 'Tier DEF', 'Tier AGI (evasão)', 'HP', 'Ataque', 'Defesa', 'Agilidade', 'Passivas', 'Golpes', 'Bloqueado', 'Motivo', 'Retrato', 'Arte', 'Fonte', 'Obs'];
+      const tv = (k, t) => D.config.tiers[k].base + D.config.tiers[k].passo * t;
+      return [hd].concat(D.herois.map((h) => { const t = h.tiers; return [h.id, h.nome, h.classe, h.afiliacoes.join(' | ') || 'pendente', t ? t.hp : '', t ? t.atk : '', t ? t.def : '', t ? t.agi : '', t ? tv('hp', t.hp) : '', t ? tv('atk', t.atk) : '', t ? tv('def', t.def) : '', t ? tv('agi', t.agi) : '', h.passivas.join(' | ') || '—', h.golpes.join(' | ') || '—', h.bloqueado ? 'sim' : 'nao', h.motivo || '', h.retrato, h.arte, h.fonte, h.obs]; }));
+    } },
+    golpes: { nome: 'Golpes', hint: 'Dano = média de min/max (n/a = 0). "Aplica" cita só ids das bibliotecas.', rows: () => [['ID', 'Herói', 'Golpe', 'Ícone', 'Stamina %', 'Alvo', 'Dano mín', 'Dano máx', 'Dano médio', 'Nº golpes', 'Hit %', 'Crit %', 'Tipos', 'Propriedades (azul)', 'Aplica (debuffs vermelho / buffs verde)', 'Recarga', 'Obs']].concat(D.golpes.map((s) => [s.id, s.heroi, s.nome, s.icone, s.custo, s.alvo, s.danoMin == null ? 'n/a' : s.danoMin, s.danoMax == null ? 'n/a' : s.danoMax, s.danoMin == null ? 0 : (s.danoMin + s.danoMax) / 2, s.golpes, s.hit == null ? '' : s.hit, s.crit == null ? '' : s.crit, s.tipos.join(' | '), s.props.join(' | ') || '—', kv(s.aplica) || '—', s.recarga, s.obs])) },
+    debuffs: { nome: 'Debuffs (vermelho)', hint: 'Células marcadas = valor provisório (a wiki não informa).', rows: () => effRows('debuff') },
+    buffs: { nome: 'Buffs (verde)', hint: 'Células marcadas = valor provisório (a wiki não informa).', rows: () => effRows('buff') },
+    props: { nome: 'Propriedades (azul)', hint: '', rows: () => [['ID', 'Nome', 'Descrição', 'Dados', 'Provisório']].concat(Object.entries(D.propriedades).map(([id, p]) => [id, p.nome, p.desc, JSON.stringify(Object.fromEntries(Object.entries(p).filter(([k]) => !['nome', 'desc', 'provisorio'].includes(k)))), (p.provisorio || []).join(' | ')])) },
+    config: { nome: 'Config / Classes', hint: 'Classes ainda sem vantagens/desvantagens (futuro).', rows: () => [['Chave', 'Valor']].concat(Object.entries(D.config).map(([k, v]) => [k, JSON.stringify(v)]), Object.entries(D.classes).map(([k, v]) => ['classe ' + k, JSON.stringify(v)])) }
+  };
+  function effRows(tipo) { return [['ID', 'Nome', 'Duração (turnos)', 'Descrição', 'Dados (mods/escudo/etc.)', 'Provisório']].concat(Object.entries(D.efeitos).filter(([, e]) => e.tipo === tipo).map(([id, e]) => [id, e.nome, e.duracao == null ? 'até remover' : e.duracao, e.desc, JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k]) => !['nome', 'tipo', 'duracao', 'desc', 'provisorio'].includes(k)))), (e.provisorio || []).join(' | ')])); }
+  function renderData() {
+    const t = $('#datTabs'); t.innerHTML = '';
+    Object.keys(TABLES).forEach((k) => { const b = el('button', k === tab ? 'on' : '', TABLES[k].nome); b.onclick = () => { tab = k; renderData(); }; t.appendChild(b); });
+    $('#datHint').textContent = TABLES[tab].hint;
+    const rows = TABLES[tab].rows(), tb = $('#datTable'); tb.innerHTML = '';
+    rows.forEach((r, i) => { const tr = el('tr'); r.forEach((c, j) => { const td = el(i ? 'td' : 'th', '', esc(c)); if (i && /Provisório/.test(rows[0][j]) && c) td.className = 'pv'; tr.appendChild(td); }); tb.appendChild(tr); });
+  }
+  $('#datCsv').onclick = () => {
+    const rows = TABLES[tab].rows(), q = (v) => { v = String(v == null ? '' : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const a = el('a'); a.href = URL.createObjectURL(new Blob(['﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' })); a.download = tab + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  renderSel();
+})();
+</script>
+</body>
+</html>
