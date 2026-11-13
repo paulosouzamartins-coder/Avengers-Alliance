@@ -26,17 +26,27 @@ main{max-width:1500px;margin:auto;padding:12px 16px 40px}
 .art{position:relative;background:linear-gradient(160deg,var(--c,#555),#111);overflow:hidden;display:grid;place-items:center;color:#fff;font-weight:800;text-shadow:0 2px 4px #000}
 .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .art span{position:relative;opacity:.9;text-align:center;padding:4px;font-size:12px}
-/* seleção */
-.teams{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.team{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}.team h3{margin:0 0 6px;font-size:13px}.team.active{outline:2px solid var(--acc)}
+/* seleção: layout champ select — equipe A | meio (título, grade de faces, retrato grande) | equipe B */
+.cs{display:grid;grid-template-columns:230px minmax(0,1fr) 230px;gap:14px;align-items:start}
+.cs-side{display:flex;flex-direction:column;gap:10px}
+.cs-side h3{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;text-align:center}
 #tA h3{color:var(--t0)}#tB h3{color:var(--t1)}
-.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.slot{height:110px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;color:var(--mut);cursor:pointer;position:relative;overflow:hidden}
+.slots{display:flex;flex-direction:column;gap:10px}
+.slot{height:118px;border:2px solid var(--line);border-radius:6px 26px 6px 26px;display:grid;place-items:center;color:var(--mut);cursor:pointer;position:relative;overflow:hidden;background:var(--panel)}
+#tB .slot{border-radius:26px 6px 26px 6px}
 .slot .art{position:absolute;inset:0}.slot b{position:absolute;bottom:0;left:0;right:0;background:#000b;text-align:center;font-size:12px;padding:2px}
-.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
-.hcard{background:var(--panel);border:2px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer}
-.hcard:hover:not(.locked){border-color:var(--acc)}.hcard .art{height:150px}.hcard .info{padding:8px}.hcard .info small{display:block;color:var(--mut)}
-.hcard.locked{opacity:.5;cursor:not-allowed;filter:grayscale(.8)}
+.slot.next{border-color:var(--acc);box-shadow:0 0 12px #f5b82e66}
+.cs-mid{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px}
+.cs-title{text-align:center;font-size:26px;font-weight:800;letter-spacing:.12em;color:var(--acc);text-transform:uppercase}
+.cs-title small{display:block;font-size:12px;color:var(--mut);letter-spacing:.05em;font-weight:400}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.face{aspect-ratio:1;border:2px solid var(--line);border-radius:6px;overflow:hidden;cursor:pointer;position:relative;padding:0;background:var(--panel2)}
+.face .art{position:absolute;inset:0;font-size:10px}
+.face:hover:not(.locked){border-color:var(--acc)}.face.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc),0 0 14px #f5b82e99}
+.face.locked{opacity:.45;filter:grayscale(.9);cursor:not-allowed}
+.cs-pick{display:grid;grid-template-columns:minmax(180px,300px) 1fr;gap:14px;align-items:stretch;min-height:300px}
+.cs-pick .art{height:100%;min-height:300px;border-radius:10px;border:2px solid var(--acc)}
+.cs-info{display:flex;flex-direction:column;gap:6px}.cs-info h2{margin:0;font-size:22px}.cs-info small{color:var(--mut)}
 .cls{display:inline-block;padding:0 8px;border-radius:10px;font-size:11px;font-weight:700;background:var(--c);color:#111}
 /* batalha */
 .order{display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:8px;overflow:auto}
@@ -72,7 +82,7 @@ main{max-width:1500px;margin:auto;padding:12px 16px 40px}
 /* dados */
 .tabs button{margin-right:4px}.tw{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
 table{border-collapse:collapse;font-size:12px;width:max-content}th,td{border:1px solid var(--line);padding:4px 8px;vertical-align:top}th{position:sticky;top:0;background:var(--panel2)}td.n{text-align:right}td.pv{background:#4a3205}
-@media(max-width:1000px){.teams,.bottom,.arena{grid-template-columns:1fr}.skills{grid-template-columns:repeat(2,1fr)}.unit{width:30%;min-width:110px}}
+@media(max-width:1000px){.cs,.cs-pick,.bottom,.arena{grid-template-columns:1fr}.slots{flex-direction:row}.slot{flex:1}.skills{grid-template-columns:repeat(2,1fr)}.unit{width:30%;min-width:110px}}
 </style>
 </head>
 <body>
@@ -83,10 +93,18 @@ table{border-collapse:collapse;font-size:12px;width:max-content}th,td{border:1px
 </header>
 <main>
   <section id="v-sel">
-    <div class="teams"><div class="team" id="tA"><h3>Equipe A</h3><div class="slots"></div></div><div class="team" id="tB"><h3>Equipe B</h3><div class="slots"></div></div></div>
-    <div class="row"><button id="bRand">Preencher aleatório</button><button id="bClear">Limpar</button><button id="bStart" class="primary" disabled>Iniciar batalha</button>
-      <span class="hint">Clique num herói para colocá-lo na equipe com vaga; clique no slot para remover. Heróis liberados podem se repetir (só há 2 liberados por enquanto).</span></div>
-    <div class="roster" id="roster"></div>
+    <div class="cs">
+      <aside class="cs-side team" id="tA"><h3>Equipe A</h3><div class="slots"></div></aside>
+      <div class="cs-mid">
+        <div class="cs-title" id="csTitle">Sua escolha<small id="csSub"></small></div>
+        <div class="roster" id="roster"></div>
+        <div class="cs-pick" id="csPick"></div>
+        <div class="row" style="justify-content:center"><button id="bConfirm" class="primary" disabled>Confirmar herói</button>
+          <button id="bRand">Preencher aleatório</button><button id="bClear">Limpar</button><button id="bStart" class="primary" disabled>Iniciar batalha</button></div>
+        <span class="hint">Clique numa face para ver o herói; “Confirmar” coloca na equipe da vez; clique num herói já confirmado para removê-lo. Heróis liberados podem se repetir.</span>
+      </div>
+      <aside class="cs-side team" id="tB"><h3>Equipe B</h3><div class="slots"></div></aside>
+    </div>
   </section>
 
   <section id="v-bat" hidden>
@@ -162,19 +180,19 @@ const DATA = {
   herois: [
     { id: 'iron_man', nome: 'Iron Man', classe: 'Blaster', afiliacoes: ['Avengers', 'All-New, All-Different Avengers', 'Illuminati', 'S.H.I.E.L.D.', 'Guardians of the Galaxy', 'Hellfire Club', 'West Coast Avengers'],
       tiers: { hp: 2, atk: 4, def: 4, agi: 2 }, passivas: [], golpes: ['im_repulsor_ray', 'im_missile_barrage', 'im_deflector_shield', 'im_unibeam'],
-      retrato: 'assets/portraits/iron_man.png', arte: 'assets/art/iron_man.png', fonte: 'https://avengersalliance.fandom.com/wiki/Iron_Man', bloqueado: false,
+      face: 'assets/face/iron_man.png', smallportrait: 'assets/smallportrait/iron_man.png', portrait: 'assets/portrait/iron_man.png', fonte: 'https://avengersalliance.fandom.com/wiki/Iron_Man', bloqueado: false,
       obs: 'Tiers lidos das barras (Bar01=cheia, 5 barras visíveis — a wiki mostrou 5, não 6). Stats brutos da wiki (nível 2): HP 117, Atk 29, Def 29, Acc 26, Eva 23. "Effects:" vazio na wiki. Dano dos golpes base = n/a na wiki → 0 (só o Ataque do herói causa dano).' },
     { id: 'captain_america', nome: 'Captain America', classe: 'Tactician', afiliacoes: ['Avengers', 'Illuminati', 'S.H.I.E.L.D.', 'The Invaders', 'Secret Avengers'],
       tiers: { hp: 3, atk: 3, def: 3, agi: 3 }, passivas: [], golpes: ['cap_shield_bash', 'cap_leading_strike', 'cap_shield_throw', 'cap_shield_guard'],
-      retrato: 'assets/portraits/captain_america.png', arte: 'assets/art/captain_america.png', fonte: 'https://avengersalliance.fandom.com/wiki/Captain_America', bloqueado: false,
+      face: 'assets/face/captain_america.png', smallportrait: 'assets/smallportrait/captain_america.png', portrait: 'assets/portrait/captain_america.png', fonte: 'https://avengersalliance.fandom.com/wiki/Captain_America', bloqueado: false,
       obs: 'Tiers lidos das barras (3 em tudo). Stats brutos da wiki: HP 7153, Atk/Def/Acc/Eva 1431. "Effects:" vazio na wiki. Efeitos de Leading Strike (Target Focus) inferidos pela leitura da página.' },
-    { id: 'hulk', nome: 'Hulk', classe: 'Bruiser', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/hulk.png', arte: 'assets/art/hulk.png',
+    { id: 'hulk', nome: 'Hulk', classe: 'Bruiser', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/hulk.png', smallportrait: 'assets/smallportrait/hulk.png', portrait: 'assets/portrait/hulk.png',
       fonte: 'https://avengersalliance.fandom.com/wiki/Hulk', bloqueado: true, motivo: 'Página da wiki lida sem stats, afiliação nem golpes (texto truncado). Classe vem do seu pedido.', obs: '' },
-    { id: 'wolverine', nome: 'Wolverine', classe: 'Scrapper', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/wolverine.png', arte: 'assets/art/wolverine.png',
+    { id: 'wolverine', nome: 'Wolverine', classe: 'Scrapper', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/wolverine.png', smallportrait: 'assets/smallportrait/wolverine.png', portrait: 'assets/portrait/wolverine.png',
       fonte: 'https://avengersalliance.fandom.com/wiki/Wolverine', bloqueado: true, motivo: 'Página da wiki não pôde ser acessada (erro). Classe vem do seu pedido.', obs: '' },
-    { id: 'spider_man', nome: 'Spider-Man', classe: 'Infiltrator', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/spider_man.png', arte: 'assets/art/spider_man.png',
+    { id: 'spider_man', nome: 'Spider-Man', classe: 'Infiltrator', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/spider_man.png', smallportrait: 'assets/smallportrait/spider_man.png', portrait: 'assets/portrait/spider_man.png',
       fonte: 'https://avengersalliance.fandom.com/wiki/Spider_Man', bloqueado: true, motivo: 'Página da wiki não pôde ser acessada (erro). Classe vem do seu pedido.', obs: '' },
-    { id: 'beast', nome: 'Beast', classe: 'Generalist', afiliacoes: [], tiers: null, passivas: [], golpes: [], retrato: 'assets/portraits/beast.png', arte: 'assets/art/beast.png',
+    { id: 'beast', nome: 'Beast', classe: 'Generalist', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/beast.png', smallportrait: 'assets/smallportrait/beast.png', portrait: 'assets/portrait/beast.png',
       fonte: 'https://avengersalliance.fandom.com/wiki/Beast', bloqueado: true, motivo: 'Página da wiki lida sem stats, afiliação nem golpes (texto truncado). Classe vem do seu pedido.', obs: '' }
   ],
 
@@ -217,7 +235,7 @@ function createBattle(D, teams, opts) {
   const tierVal = (k, t) => C.tiers[k].base + C.tiers[k].passo * t;
   const units = [], events = [];
   const B = { units, events, round: 0, order: [], idx: -1, current: null, phase: 'idle', winner: null, turnStamp: 0, SK };
-  const ev = (o) => { o.n = events.length; events.push(o); return o; };
+  const ev = (o) => { o.seq = events.length; events.push(o); return o; };
 
   const count = {}; teams.flat().forEach((id) => { count[id] = (count[id] || 0) + 1; });
   const seen = {};
@@ -303,7 +321,7 @@ function createBattle(D, teams, opts) {
       case 'allyAll': return alive(u.team);
       case 'ally1': return [find(pick)];
       case 'enemy1': { let t = find(pick); const p = protector(t.team, t); if (p) { ev({ t: 'protect', uid: p.uid, tgt: t.uid }); t = p; } return [t]; }
-      case 'enemyAll': { const es = alive(1 - u.team), p = protector(1 - u.team); if (p) { ev({ t: 'protect', uid: p.uid, tgt: null }); return es.filter((x) => x === p || !x.effects.some(() => false) && x.team !== p.team); } return es; }
+      case 'enemyAll': { const es = alive(1 - u.team), p = protector(1 - u.team); if (p) { ev({ t: 'protect', uid: p.uid, tgt: null }); return [p]; } /* área: só o protetor é atingido; os aliados ficam protegidos */ return es; }
     }
     return [];
   }
@@ -393,7 +411,9 @@ function createBattle(D, teams, opts) {
   function art(src, label, cls) {
     const d = el('div', 'art ' + (cls || '')); d.style.setProperty('--c', 'var(--c-' + (label.cls || 'Generalist') + ')');
     d.innerHTML = '<span>' + esc(label.text) + '</span>';
-    if (src) { const i = new Image(); i.alt = ''; i.onerror = () => i.remove(); i.src = src; d.appendChild(i); }
+    if (src) { /* tenta webp, png, jpg, jpeg, na ordem; o que existir em assets/ é usado (a extensão no dado é ignorada) */
+      const base = src.replace(/\.\w+$/, ''), exts = ['webp', 'png', 'jpg', 'jpeg']; let k = 0;
+      const i = new Image(); i.alt = ''; i.onerror = () => { if (++k < exts.length) i.src = base + '.' + exts[k]; else i.remove(); }; i.src = base + '.' + exts[0]; d.appendChild(i); }
     return d;
   }
   const chip = (txt, kind, title) => '<span class="chip ' + kind + '" title="' + esc(title || '') + '">' + esc(txt) + '</span>';
@@ -407,27 +427,44 @@ function createBattle(D, teams, opts) {
   /* ---------- seleção ---------- */
   const teams = [[], []];
   const activeTeam = () => (teams[0].length < 3 ? 0 : teams[1].length < 3 ? 1 : -1);
+  let preview = null;
   function renderSel() {
-    [['#tA', 0], ['#tB', 1]].forEach(([s, t]) => {
-      const box = $(s + ' .slots'); box.innerHTML = '';
+    const at = activeTeam();
+    [['#tA', 0], ['#tB', 1]].forEach(([sel, t]) => {
+      const box = $(sel + ' .slots'); box.innerHTML = '';
       for (let i = 0; i < 3; i++) {
-        const id = teams[t][i], h = id && H(id), d = el('div', 'slot', h ? '' : 'vazio');
-        if (h) { d.appendChild(art(h.retrato, { text: h.nome, cls: h.classe })); d.appendChild(el('b', '', esc(h.nome))); d.onclick = () => { teams[t].splice(i, 1); renderSel(); }; }
+        const id = teams[t][i], h = id && H(id), d = el('div', 'slot' + (!h && at === t && i === teams[t].length ? ' next' : ''), h ? '' : 'vazio');
+        /* herói confirmado: assets/smallportrait/<id>.png */
+        if (h) { d.appendChild(art(h.smallportrait, { text: h.nome, cls: h.classe })); d.appendChild(el('b', '', esc(h.nome))); d.onclick = () => { teams[t].splice(i, 1); renderSel(); }; }
         box.appendChild(d);
       }
-      $(s).classList.toggle('active', activeTeam() === t);
+      $(sel).classList.toggle('active', at === t);
     });
     $('#bStart').disabled = !(teams[0].length === 3 && teams[1].length === 3);
+    $('#csSub').textContent = at < 0 ? 'Equipes completas' : 'Equipe ' + 'AB'[at] + ' — vaga ' + (teams[at].length + 1) + ' de 3';
+    /* meio: grade de ícones assets/face/<id>.png */
     const r = $('#roster'); r.innerHTML = '';
     D.herois.forEach((h) => {
-      const c = el('div', 'hcard' + (h.bloqueado ? ' locked' : ''));
-      c.appendChild(art(h.arte, { text: h.nome, cls: h.classe }));
-      const inf = el('div', 'info', '<b>' + esc(h.nome) + '</b> <span class="cls" style="--c:var(--c-' + h.classe + ')">' + h.classe + '</span><small>' + (h.afiliacoes.length ? esc(h.afiliacoes.slice(0, 3).join(', ')) + (h.afiliacoes.length > 3 ? '…' : '') : 'afiliação: pendente') + '</small>' + (h.bloqueado ? '<small>🔒 ' + esc(h.motivo) + '</small>' : ''));
-      c.appendChild(inf);
-      if (!h.bloqueado) c.onclick = () => { const t = activeTeam(); if (t < 0) return; teams[t].push(h.id); renderSel(); };
+      const c = el('button', 'face' + (h.bloqueado ? ' locked' : '') + (preview === h.id ? ' sel' : ''));
+      c.title = h.nome + (h.bloqueado ? ' (bloqueado: ' + h.motivo + ')' : '');
+      c.appendChild(art(h.face, { text: h.nome, cls: h.classe }));
+      c.onclick = () => { if (h.bloqueado) return; preview = h.id; renderSel(); };
       r.appendChild(c);
     });
+    /* meio, abaixo (onde no LoL fica o chat): retrato grande assets/portrait/<id>.png */
+    const pk = $('#csPick'); pk.innerHTML = '';
+    const h = preview && H(preview);
+    if (h) {
+      pk.appendChild(art(h.portrait, { text: h.nome, cls: h.classe }));
+      const t = h.tiers;
+      pk.appendChild(el('div', 'cs-info', '<h2>' + esc(h.nome) + '</h2><span class="cls" style="--c:var(--c-' + h.classe + ')">' + h.classe + '</span>'
+        + '<small>' + (h.afiliacoes.length ? esc(h.afiliacoes.join(', ')) : 'afiliação: pendente') + '</small>'
+        + (t ? '<div class="kv"><span>HP</span><b>' + t.hp + '</b><span>Ataque</span><b>' + t.atk + '</b><span>Defesa</span><b>' + t.def + '</b><span>Agilidade</span><b>' + t.agi + '</b></div>' : '')
+        + '<small>Golpes: ' + h.golpes.map((g) => esc(SKM[g] ? SKM[g].nome : g)).join(', ') + '</small>'));
+    } else pk.appendChild(el('div', 'hint', 'Selecione um herói na grade.'));
+    $('#bConfirm').disabled = !(h && at >= 0);
   }
+  $('#bConfirm').onclick = () => { const t = activeTeam(); if (t < 0 || !preview) return; teams[t].push(preview); renderSel(); };
   const free = () => D.herois.filter((h) => !h.bloqueado).map((h) => h.id);
   $('#bRand').onclick = () => { const f = free(); teams[0] = []; teams[1] = []; for (let i = 0; i < 3; i++) { teams[0].push(f[Math.floor(Math.random() * f.length)]); teams[1].push(f[Math.floor(Math.random() * f.length)]); } renderSel(); };
   $('#bClear').onclick = () => { teams[0] = []; teams[1] = []; renderSel(); };
@@ -453,7 +490,7 @@ function createBattle(D, teams, opts) {
       const side = $('#side' + s); side.innerHTML = '';
       B.units.filter((u) => u.team === t).forEach((u) => {
         const d = el('div', 'unit t' + t); d.dataset.uid = u.uid;
-        d.appendChild(art(u.hero.arte, { text: u.name, cls: u.cls }));
+        d.appendChild(art(u.hero.portrait, { text: u.name, cls: u.cls }));
         d.appendChild(el('div', 'meta', '<div class="nm">' + esc(u.name) + '</div><div class="bar hp"><i></i></div><div class="bt"><span class="h"></span><span>HP</span></div><div class="bar st"><i></i></div><div class="bt"><span class="s"></span><span>Stamina</span></div><div class="fx"></div>'));
         d.onclick = () => onUnit(u.uid); side.appendChild(d);
       });
@@ -469,7 +506,7 @@ function createBattle(D, teams, opts) {
     });
     // ordem de turnos da rodada
     const o = $('#order'); o.innerHTML = '<span class="lbl">Rodada ' + B.round + ' — ordem por agilidade:</span>';
-    B.order.forEach((u, i) => { const n = el('div', 'o t' + u.team + (B.current === u ? ' cur' : i < B.idx || (i === B.idx && B.current !== u) ? ' done' : '') + (u.alive ? '' : ' dead')); n.title = u.name + ' (agi ' + Math.round(B.stat(u, 'agi')) + ')'; n.appendChild(art(u.hero.retrato, { text: u.name.split(' ')[0], cls: u.cls })); o.appendChild(n); });
+    B.order.forEach((u, i) => { const n = el('div', 'o t' + u.team + (B.current === u ? ' cur' : i < B.idx || (i === B.idx && B.current !== u) ? ' done' : '') + (u.alive ? '' : ' dead')); n.title = u.name + ' (agi ' + Math.round(B.stat(u, 'agi')) + ')'; n.appendChild(art(u.hero.smallportrait, { text: u.name.split(' ')[0], cls: u.cls })); o.appendChild(n); });
     renderSkills();
   }
   function renderSkills() {
@@ -552,7 +589,7 @@ function createBattle(D, teams, opts) {
     herois: { nome: 'Heróis', hint: 'Tiers (1–6) vêm das barras da wiki; valores = escala própria (config.tiers).', rows: () => {
       const hd = ['ID', 'Nome', 'Classe', 'Afiliações', 'Tier HP', 'Tier ATK', 'Tier DEF', 'Tier AGI (evasão)', 'HP', 'Ataque', 'Defesa', 'Agilidade', 'Passivas', 'Golpes', 'Bloqueado', 'Motivo', 'Retrato', 'Arte', 'Fonte', 'Obs'];
       const tv = (k, t) => D.config.tiers[k].base + D.config.tiers[k].passo * t;
-      return [hd].concat(D.herois.map((h) => { const t = h.tiers; return [h.id, h.nome, h.classe, h.afiliacoes.join(' | ') || 'pendente', t ? t.hp : '', t ? t.atk : '', t ? t.def : '', t ? t.agi : '', t ? tv('hp', t.hp) : '', t ? tv('atk', t.atk) : '', t ? tv('def', t.def) : '', t ? tv('agi', t.agi) : '', h.passivas.join(' | ') || '—', h.golpes.join(' | ') || '—', h.bloqueado ? 'sim' : 'nao', h.motivo || '', h.retrato, h.arte, h.fonte, h.obs]; }));
+      return [hd].concat(D.herois.map((h) => { const t = h.tiers; return [h.id, h.nome, h.classe, h.afiliacoes.join(' | ') || 'pendente', t ? t.hp : '', t ? t.atk : '', t ? t.def : '', t ? t.agi : '', t ? tv('hp', t.hp) : '', t ? tv('atk', t.atk) : '', t ? tv('def', t.def) : '', t ? tv('agi', t.agi) : '', h.passivas.join(' | ') || '—', h.golpes.join(' | ') || '—', h.bloqueado ? 'sim' : 'nao', h.motivo || '', h.face, h.smallportrait, h.portrait, h.fonte, h.obs]; }));
     } },
     golpes: { nome: 'Golpes', hint: 'Dano = média de min/max (n/a = 0). "Aplica" cita só ids das bibliotecas.', rows: () => [['ID', 'Herói', 'Golpe', 'Ícone', 'Stamina %', 'Alvo', 'Dano mín', 'Dano máx', 'Dano médio', 'Nº golpes', 'Hit %', 'Crit %', 'Tipos', 'Propriedades (azul)', 'Aplica (debuffs vermelho / buffs verde)', 'Recarga', 'Obs']].concat(D.golpes.map((s) => [s.id, s.heroi, s.nome, s.icone, s.custo, s.alvo, s.danoMin == null ? 'n/a' : s.danoMin, s.danoMax == null ? 'n/a' : s.danoMax, s.danoMin == null ? 0 : (s.danoMin + s.danoMax) / 2, s.golpes, s.hit == null ? '' : s.hit, s.crit == null ? '' : s.crit, s.tipos.join(' | '), s.props.join(' | ') || '—', kv(s.aplica) || '—', s.recarga, s.obs])) },
     debuffs: { nome: 'Debuffs (vermelho)', hint: 'Células marcadas = valor provisório (a wiki não informa).', rows: () => effRows('debuff') },
