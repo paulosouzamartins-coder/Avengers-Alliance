@@ -23,3 +23,8 @@ Lock-On +25% Ranged · Burning 5% vida/turno e −20% DEF · Dizzy −25 pontos 
 - Classes sem vantagem/desvantagem (por pedido). Afiliações guardadas mas ainda sem efeito no jogo.
 
 - Formato das imagens: o simulador procura `.webp`, `.png`, `.jpg`, `.jpeg` (nessa ordem) para cada nome; pode misturar formatos. Ícones de golpe: `assets/skills/<nome_do_golpe_em_minusculas_com_underscore>.<ext>` (ex.: `repulsor_ray`, `missile_barrage`, `deflector_shield`, `unibeam`, `shield_bash`, `leading_strike`, `shield_throw`, `shield_guard`).
+
+## Seleção (layout champ select)
+- Centro: portrait grande no topo (`assets/portrait/<id>`, redimensionado para caber inteiro e centralizado), nome + 4 ícones de golpe abaixo, e a grade de faces (`assets/face/<id>`) embaixo — só ela tem scroll.
+- Laterais: `assets/smallportrait/<id>`. Equipe B e unidades B na batalha aparecem espelhadas (scaleX(-1)). Supõe-se que a arte original olha para a direita.
+- Modos futuros (só registrados em `config.modos`, nada de rede/IA ainda): 1 jogador x máquina, jogador x jogador 3v3, 3 x 3 jogadores (1 herói cada). Cada vaga da seleção já guarda `{ heroi, dono }` (dono = null = local).

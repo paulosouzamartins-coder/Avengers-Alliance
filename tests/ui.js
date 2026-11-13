@@ -12,6 +12,10 @@ const path = require('path'); const { chromium } = require('playwright');
   const free = p.locator('.face:not(.locked)');
   for (const i of [0, 1, 0, 1, 1, 0]) { await free.nth(i).click(); await p.click('#bConfirm'); }
   ok(await p.$$eval('#csPick .art', (a) => a.length === 1), 'retrato grande no meio');
+  ok(await p.$$eval('#tB .slot .art', (a) => a.length === 3), 'equipe B com 3 retratos');
+  ok(await p.$eval('#tB .slot', (e) => { const i = e.querySelector('img'); return !i || getComputedStyle(i).transform !== 'none'; }), 'lado B espelhado');
+  const g = await p.evaluate(() => { const w = document.querySelector('.cs-gridwrap'), st = document.querySelector('#csPick').getBoundingClientRect(), r = document.querySelector('.cs-root'); return { overflowY: getComputedStyle(w).overflowY, bodyScroll: document.documentElement.scrollHeight - innerHeight, stageH: st.height, stageW: st.width, rootOv: getComputedStyle(r).overflow }; });
+  ok(g.overflowY === 'auto', 'só a grade tem scroll'); ok(g.stageH > 250 && g.stageW > 400, 'palco grande: ' + Math.round(g.stageW) + 'x' + Math.round(g.stageH)); console.log('scroll extra da página:', g.bodyScroll);
   ok(await p.$eval('#bStart', (e) => !e.disabled), 'Iniciar habilitado com 3x3 (repetidos)');
   if (shots) await p.screenshot({ path: path.join(shots, 'a-selecao.png') });
   await p.click('#bStart'); await p.check('#fast');
