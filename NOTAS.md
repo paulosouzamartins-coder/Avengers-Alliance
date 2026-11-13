@@ -1,30 +1,29 @@
-# MAA PvP Simulator v0.2 — notas
+# MAA PvP Simulator — notas
 
-**Estrutura:** `index.html` (dados + engine + interface num arquivo só) e `assets/`. `tests/` é só para desenvolvimento (`node tests/test.js`, `node tests/ui.js`).
+## Como atualizar os dados
+1. Edite `dados/maa.xlsx` (abas **Characters** e **Skills**, mesmas colunas de sempre; a aba Skills ganhou a coluna **One Ally**).
+2. Peça para eu rodar `python3 tools/importar.py` (reescreve o bloco de dados do `index.html`) ou me envie a planilha.
+Heróis, golpes e números vêm só da planilha; o código não tem números de conteúdo.
 
-## Imagens (você adiciona em assets/)
-- Ícone na grade do meio da seleção: `assets/face/<id>.png`
-- Herói confirmado nas laterais (e barra de ordem): `assets/smallportrait/<id>.png`
-- Retrato grande no meio da seleção (onde no LoL fica o chat) e na arena: `assets/portrait/<id>.png`
-- (antigo, não é mais usado) `assets/portraits/<id>.png` — ex.: `iron_man.png`, `captain_america.png`, `hulk.png`, `wolverine.png`, `spider_man.png`, `beast.png`
-- Arena usa o mesmo `assets/portrait/<id>.png`
-- Ícone de golpe: `assets/skills/<nome>.jpg` — ex.: `repulsor_ray.jpg`, `shield_bash.jpg` (os caminhos exatos estão na aba Dados > Golpes). Sem a imagem, aparece um bloco colorido com o nome.
+## Regras de combate (como entendi — confirmar)
+- **Dano por hit** = (Total damage ÷ Hits) × (Ataque ÷ Defesa do alvo) — confirmado. Ataque = defesa → dano puro; 50% maior → ×1,5; 50% menor → ×0,5. A defesa alta reduz o dano pela mesma conta.
+- **Chance de acerto** = Hit Chance do golpe × (Precisão ÷ Evasão do alvo), no máximo 100% — confirmado.
+- **Crítico**: chance da coluna Critical (valores > 1 na planilha são lidos como %, ex.: 11 = 11%); dano × 1,5 (**provisório**, `config.danoCritico`).
+- **Ordem de turno**: Evasão (maior primeiro; empate sorteado), recalculada a cada rodada.
+- **Stamina**: todos começam com 100%; cada golpe gasta o valor da coluna Stamina (em %); +20% no início de cada turno do herói. O atributo "Stamina" do herói (124 etc.) ainda não é usado.
+- **Cooldown**: o golpe fica indisponível nos N turnos seguintes do próprio herói.
+- **Status** (Bleeding, Stun…) e **Special Properties** (Quick Action, Deadly Crits…) aparecem só como etiquetas, sem efeito, até existirem as bibliotecas. Repetir o mesmo status soma ×N (ex.: "Bleeding x2" = 2).
+- Colunas de efeito (cada grupo vale por si, independente do alvo do golpe — dá para atacar todos os inimigos e buffar todos os aliados; coluna opcional **All Allies** na aba Skills para isso): One Enemy = alvo do golpe; Self = o próprio herói; All Enemies = todos os inimigos (ou todos os aliados, quando o golpe é All allies); One Ally = o aliado escolhido. Em golpes que causam dano, o status só entra em quem foi acertado.
 
-## Onde mexer
-Tudo em `<script id="data">`: `config` (escala de tiers, stamina, crítico), `efeitos` (debuffs/buffs), `propriedades`, `herois`, `golpes`. Golpes só citam ids de efeito; duração e números ficam na biblioteca.
+## Assets (a extensão pode ser webp, png, jpg ou jpeg)
+- `assets/face/<Heroi>_Icon_Large_1.webp` — ícone na grade de seleção (ex.: `Black_Widow_Icon_Large_1.webp`)
+- `assets/smallportrait/<Heroi>_Dialogue_1.webp` — herói confirmado nas laterais e barra de ordem de turnos
+- `assets/portrait/<Heroi>_Portrait_Art.webp` — retrato grande da seleção e da arena (imagem inteira, centralizada)
+- `assets/skills/<Heroi>-<Golpe>.webp` — ícone do golpe, ex.: `Black_Widow-Martial_Arts_Combo.webp` (espaços viram `_`, maiúsculas, ponto, hífen e apóstrofo são mantidos; se o arquivo tiver o apóstrofo removido — `Black_Widow-Widows_Bite` — também é encontrado)
+- Lado da Equipe B (laterais, palco e arena) é espelhado automaticamente; a arte deve olhar para a direita.
 
-## Provisório (a wiki não informa — adaptação minha, reescreva)
-Lock-On +25% Ranged · Burning 5% vida/turno e −20% DEF · Dizzy −25 pontos de Hit · Target Focus +25% · Deflector Shield absorve 1500 · Unibeam Focus +10% dano/+5 hit/+5 crit por acúmulo · Deadly Crits ×2,0 · crítico ×1,5 · dano mínimo 10% · escala de tiers · proteção do Shield Guard contra área (só o Cap é atingido).
+Ids dos heróis: 
 
-## Pendente
-- Hulk, Wolverine, Spider-Man, Beast: bloqueados (sem stats/golpes/afiliação).
-- Tiers lidos das barras (Bar01=cheia, 5 barras na wiki em vez de 6): confirmar.
-- Iron Man: dano n/a na wiki base → 0. Efeito do Unibeam Focus está no próprio Iron Man (nota de patch).
-- Classes sem vantagem/desvantagem (por pedido). Afiliações guardadas mas ainda sem efeito no jogo.
 
-- Formato das imagens: o simulador procura `.webp`, `.png`, `.jpg`, `.jpeg` (nessa ordem) para cada nome; pode misturar formatos. Ícones de golpe: `assets/skills/<nome_do_golpe_em_minusculas_com_underscore>.<ext>` (ex.: `repulsor_ray`, `missile_barrage`, `deflector_shield`, `unibeam`, `shield_bash`, `leading_strike`, `shield_throw`, `shield_guard`).
-
-## Seleção (layout champ select)
-- Centro: portrait grande no topo (`assets/portrait/<id>`, redimensionado para caber inteiro e centralizado), nome + 4 ícones de golpe abaixo, e a grade de faces (`assets/face/<id>`) embaixo — só ela tem scroll.
-- Laterais: `assets/smallportrait/<id>`. Equipe B e unidades B na batalha aparecem espelhadas (scaleX(-1)). Supõe-se que a arte original olha para a direita.
-- Modos futuros (só registrados em `config.modos`, nada de rede/IA ainda): 1 jogador x máquina, jogador x jogador 3v3, 3 x 3 jogadores (1 herói cada). Cada vaga da seleção já guarda `{ heroi, dono }` (dono = null = local).
+## Modos futuros (nada de rede/IA ainda)
+Sempre 3x3: 1 jogador x máquina, jogador x jogador, 3 jogadores x 3 jogadores (1 herói cada). Cada vaga já guarda `{ heroi, dono }` (dono = null = local) e os modos estão em `config.modos`.

@@ -3,162 +3,128 @@
 const fs = require('fs'), vm = require('vm'), path = require('path'), assert = require('assert');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const part = (id) => html.match(new RegExp('<script id="' + id + '">([\\s\\S]*?)</script>'))[1];
-function load() {
-  const ctx = vm.createContext({}); vm.runInContext(part('data') + '\n' + part('engine') + '\nthis.DATA=DATA;this.createBattle=createBattle;', ctx); return ctx;
-}
+function load() { const ctx = vm.createContext({}); vm.runInContext(part('data') + '\n' + part('engine') + '\nthis.DATA=DATA;this.createBattle=createBattle;', ctx); return ctx; }
 let ok = 0, fail = 0;
 function test(name, fn) { try { fn(); ok++; console.log('ok   -', name); } catch (e) { fail++; console.log('FAIL -', name, '\n      ', e.message); } }
-const R = (v) => () => v;                       // rng constante: 0.5 => acerta (hit>50), não crita (crit<50)
-const mk = (a, b, rng, mut) => { const c = load(); if (mut) mut(c.DATA); return { c, b: c.createBattle(c.DATA, [a, b].map((x) => x), { rng: rng || R(0.5) }) }; };
-const IM = 'iron_man', CAP = 'captain_america';
-const unit = (b, h) => b.units.find((u) => u.heroId === h);
-// leva o turno até o herói desejado passando os outros
+/* rng: sequência fixa de valores (repete o último) */
+const seq = (...v) => { let i = 0; return () => v[Math.min(i++, v.length - 1)]; };
+const mk = (a, b, rng, mut) => { const c = load(); if (mut) mut(c.DATA); return c.createBattle(c.DATA, [a, b], { rng: rng || (() => 0.99) }); };
+const unit = (b, h, team) => b.units.find((u) => u.heroId === h && (team == null || u.team === team));
 function until(b, uid) { let g = 0; while (b.current && b.current.uid !== uid && g++ < 50) b.pass(); assert.strictEqual(b.current.uid, uid); }
+const X = (v) => JSON.parse(JSON.stringify(v));
 
-test('dados: referências válidas (golpes, efeitos, propriedades, tiers)', () => {
+test('dados: 10 heróis da planilha, 4 golpes cada, referências válidas', () => {
   const { DATA: D } = load();
-  D.herois.forEach((h) => {
-    if (h.bloqueado) { assert.ok(h.motivo, h.id + ' bloqueado sem motivo'); return; }
-    assert.strictEqual(h.golpes.length, 4, h.id + ' precisa de 4 golpes');
-    ['hp', 'atk', 'def', 'agi'].forEach((k) => assert.ok(h.tiers[k] >= 1 && h.tiers[k] <= 6, h.id + ' tier ' + k));
-    h.golpes.forEach((g) => { const s = D.golpes.find((x) => x.id === g); assert.ok(s && s.heroi === h.id, g); });
-  });
-  D.golpes.forEach((s) => {
-    assert.ok(['enemy1', 'enemyAll', 'ally1', 'allyAll', 'self'].includes(s.alvo), s.id);
-    s.props.forEach((p) => assert.ok(D.propriedades[p], s.id + ' prop ' + p));
-    Object.values(s.aplica).flat().forEach((e) => assert.ok(D.efeitos[e], s.id + ' efeito ' + e));
-  });
-  Object.values(D.efeitos).forEach((e) => { if (e.contraGolpe) assert.ok(D.golpes.find((g) => g.id === e.contraGolpe)); });
+  assert.strictEqual(D.herois.length, 10); assert.strictEqual(D.golpes.length, 40);
+  D.herois.forEach((h) => { assert.strictEqual(h.golpes.length, 4, h.id); h.golpes.forEach((g) => assert.ok(D.golpes.find((s) => s.id === g && s.heroi === h.id), g)); assert.ok(h.hp > 0 && h.atk > 0 && h.def > 0, h.id); });
+  assert.strictEqual(new Set(D.golpes.map((s) => s.id)).size, 40, 'ids únicos');
 });
-test('dados: médias de dano da wiki e n/a = 0', () => {
-  const { b } = mk([CAP], [IM]);
-  const g = (id) => b.SK[id];
-  assert.strictEqual(b.avgDmg(g('cap_shield_bash')), 1128); assert.strictEqual(b.avgDmg(g('cap_leading_strike')), 1172.5);
-  assert.strictEqual(b.avgDmg(g('cap_shield_throw')), 712.5); assert.strictEqual(b.avgDmg(g('im_repulsor_ray')), 0);
+test('dados: valores da planilha (Wolverine / Dr. Strange / crítico normalizado)', () => {
+  const { DATA: D } = load(), w = D.herois.find((h) => h.id === 'wolverine'), g = (id) => D.golpes.find((s) => s.id === id);
+  assert.deepStrictEqual(X({ hp: w.hp, atk: w.atk, def: w.def, acc: w.acc, eva: w.eva }), { hp: 137, atk: 41, def: 35, acc: 35, eva: 31 });
+  const c = g('wolverine__adamantium_claws'); assert.strictEqual(c.dano, 8); assert.strictEqual(c.golpes, 2); assert.strictEqual(c.hit, 88); assert.strictEqual(c.crit, 35);
+  assert.strictEqual(g('cyclops__optic_blast').crit, 11, '"11" na planilha = 11%'); assert.strictEqual(g('hawkeye__sure_shot').hit, 100);
+  assert.deepStrictEqual(X(g('wolverine__adamantium_claws').aplica), { enemy1: [{ nome: 'Ravaged', x: 1 }, { nome: 'Bleeding', x: 2 }] });
+  assert.strictEqual(g('dr_strange__shield_of_the_seraphim').alvo, 'ally1'); assert.deepStrictEqual(X(g('cyclops__evasive_maneuvers').aplica.allyAll.map((s) => s.nome)), ['Combat Awareness', 'Agile']);
 });
-test('heróis bloqueados não entram na batalha; repetidos são permitidos', () => {
-  const c = load();
-  assert.throws(() => c.createBattle(c.DATA, [['hulk'], [IM]]), /bloqueado/);
-  const b = c.createBattle(c.DATA, [[IM, IM, CAP], [CAP, CAP, IM]], { rng: R(0.5) });
-  assert.strictEqual(JSON.stringify(b.units.map((u) => u.name)), JSON.stringify(['Iron Man 1', 'Iron Man 2', 'Captain America 1', 'Captain America 2', 'Captain America 3', 'Iron Man 3']));
+test('dano: ataque = defesa → dano puro do golpe (por hit = total ÷ hits)', () => {
+  const b = mk(['iron_man', 'iron_man', 'iron_man'], ['iron_man', 'iron_man', 'iron_man']);
+  const a = b.current, t = b.units.find((u) => u.team !== a.team);
+  assert.strictEqual(a.stats.atk, t.stats.def);
+  assert.strictEqual(b.perHit(a, t, b.SK['iron_man__repulsor_ray']), 8); // 16 total ÷ 2 hits, ataque = defesa → 8 puro
 });
-test('tiers viram stats pela escala própria', () => {
-  const { b } = mk([CAP], [IM]);
-  assert.strictEqual(unit(b, CAP).maxHp, 7000); assert.strictEqual(unit(b, IM).maxHp, 5000);
-  assert.strictEqual(unit(b, CAP).base.atk, 1400); assert.strictEqual(unit(b, IM).base.def, 1800);
+test('dano: fórmula atk/def (Wolverine → Hulk) e acerto com rng baixo', () => {
+  const b = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.5, 0.99, 0.5, 0.99, 0.5, 0.99, 0.5, 0.99));
+  const w = unit(b, 'wolverine'); until(b, w.uid);
+  const hulk = b.units.find((u) => u.team === 1);
+  const per = (8 / 2) * (41 / 38);
+  assert.ok(Math.abs(b.perHit(w, hulk, b.SK['wolverine__adamantium_claws']) - per) < 1e-9);
+  const evs = b.act('wolverine__adamantium_claws', hulk.uid), d = evs.filter((e) => e.t === 'dmg');
+  assert.ok(d.length >= 1); assert.strictEqual(d[0].amount, Math.round(per * 10) / 10); assert.strictEqual(hulk.hp, Math.round((162 - d.reduce((s, e) => s + e.amount, 0)) * 10) / 10);
 });
-test('ordem de turnos por agilidade (Cap agi 60 age antes do Iron Man agi 40)', () => {
-  const { b } = mk([IM], [CAP]);
-  assert.strictEqual(b.current.heroId, CAP); assert.strictEqual(b.order[1].heroId, IM);
+test('dano: ataque 50% maior que a defesa → ×1,5; 50% menor → ×0,5', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], null, (D) => { D.herois.find((h) => h.id === 'hulk').atk = 57; });
+  const a = b.units[0], t = b.units[3]; a.stats.atk = 57; t.stats.def = 38; const sk = b.SK['hulk__hulk_smash'];
+  assert.ok(Math.abs(b.perHit(a, t, sk) - sk.dano * 1.5) < 1e-9);
+  a.stats.atk = 19; assert.ok(Math.abs(b.perHit(a, t, sk) - sk.dano * 0.5) < 1e-9);
 });
-test('dano = (ataque + dano do golpe) − defesa; stamina gasta; Dizzy aplicado', () => {
-  const { b } = mk([IM], [CAP]);            // Cap age primeiro
-  const cap = b.current, im = unit(b, IM);
-  b.act('cap_shield_bash', im.uid);
-  assert.strictEqual(im.hp, 5000 - (1400 + 1128 - 1800));
-  assert.strictEqual(cap.stamina, 82);
-  assert.ok(im.effects.some((e) => e.id === 'dizzy'));
+test('precisão/evasão: chance = hit × (precisão ÷ evasão), máx 100%', () => {
+  const b = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk']);
+  const w = unit(b, 'wolverine'), h = b.units.find((u) => u.team === 1), sk = b.SK['hulk__hulk_smash'];
+  w.stats.acc = 35; h.stats.eva = 28; assert.strictEqual(b.hitChance(w, h, sk), Math.round(74 * 35 / 28 * 10) / 10);
+  w.stats.acc = 10; assert.strictEqual(b.hitChance(w, h, sk), Math.round(74 * 10 / 28 * 10) / 10);
+  w.stats.acc = 1000; assert.strictEqual(b.hitChance(w, h, sk), 100);
 });
-test('multi-hit: dano total dividido pelos golpes e hit rolado por golpe', () => {
-  const { b } = mk([IM], [CAP], R(0.5), (D) => { D.golpes.find((s) => s.id === 'im_repulsor_ray').danoMin = 200; D.golpes.find((s) => s.id === 'im_repulsor_ray').danoMax = 200; });
-  b.pass(); const cap = unit(b, CAP);
-  b.act('im_repulsor_ray', cap.uid);
-  assert.strictEqual(cap.hp, 7000 - 2 * (1800 + 100 - 1400));
-  // sequência de rng: acerta o 1º golpe e erra o 2º
-  const seq = [0.5, 0.5, 0.99]; let i = 0;
-  const m = mk([IM], [CAP], () => seq[i++ % seq.length]); m.b.pass();
-  const c2 = unit(m.b, CAP); m.b.act('im_repulsor_ray', c2.uid);
-  assert.strictEqual(m.b.events.filter((e) => e.t === 'miss').length >= 1, true);
+test('crítico multiplica pelo config.danoCritico', () => {
+  const b = mk(['iron_man', 'iron_man', 'iron_man'], ['iron_man', 'iron_man', 'iron_man'], seq(0, 0));
+  const a = b.current, t = b.units.find((u) => u.team !== a.team);
+  const ev = b.act('iron_man__unibeam', t.uid).find((e) => e.t === 'dmg');
+  assert.strictEqual(ev.crit, true); assert.strictEqual(ev.amount, Math.round(33 * 1.5 * 10) / 10);
 });
-test('Lock-On: +% só em ataques Ranged; editar a biblioteca muda todos os usuários', () => {
-  // segundo turno do Cap: Shield Throw (Ranged) no Iron Man com Lock-On vs Shield Bash (Melee)
-  const base = (pct, skill) => { const { b } = mk([IM], [CAP], R(0.5), (D) => { D.efeitos.lock_on.mods[0].pct = pct; }); b.act('cap_shield_throw', unit(b, IM).uid); const im = unit(b, IM); b.pass(); until(b, unit(b, CAP).uid); const before = im.hp; b.act(skill, im.uid); return before - im.hp; };
-  const rangedAfter25 = base(25, 'cap_shield_throw'), rangedAfter50 = base(50, 'cap_shield_throw'), melee25 = base(25, 'cap_shield_bash'), melee50 = base(50, 'cap_shield_bash');
-  assert.strictEqual(melee25, melee50, 'Melee não é afetado');
-  assert.ok(rangedAfter50 > rangedAfter25, 'nerf/buff da biblioteca propaga');
-  assert.strictEqual(rangedAfter25, Math.round((1400 + 712.5 - 1800) * 1.25));
+test('multi-hit: Berserker Frenzy dá 4 rolagens', () => {
+  const b = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0));
+  const w = unit(b, 'wolverine'); until(b, w.uid);
+  const evs = b.act('wolverine__berserker_frenzy', b.units.find((u) => u.team === 1).uid);
+  assert.strictEqual(evs.filter((e) => e.t === 'dmg').length, 4);
 });
-test('stamina: bloqueia golpe sem stamina e recupera 20% por turno (teto 100)', () => {
-  const { b } = mk([IM], [CAP]);
-  const cap = b.current; cap.stamina = 10;
-  assert.throws(() => b.act('cap_shield_bash', unit(b, IM).uid), /Stamina/);
-  b.pass(); b.pass(); until(b, cap.uid);
-  assert.ok(cap.stamina >= 30, 'recuperou 20 por turno a partir de 10');
-  const im = unit(b, IM); im.stamina = 95; b.pass(); until(b, im.uid); assert.strictEqual(im.stamina, 100);
+test('status: aplicado só em quem foi acertado; "Bleeding x2" empilha 2', () => {
+  const b = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0));
+  const w = unit(b, 'wolverine'); until(b, w.uid); const t = b.units.find((u) => u.team === 1);
+  b.act('wolverine__adamantium_claws', t.uid);
+  assert.deepStrictEqual(X(t.status), [{ nome: 'Ravaged', stacks: 1 }, { nome: 'Bleeding', stacks: 2 }]);
+  const b2 = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99)), w2 = unit(b2, 'wolverine'); until(b2, w2.uid); const t2 = b2.units.find((u) => u.team === 1); t2.stats.eva = 1000;
+  b2.act('wolverine__adamantium_claws', t2.uid); assert.strictEqual(t2.status.length, 0, 'errou → sem status');
 });
-test('Quick Action: turno livre + recarga de 2 rodadas bloqueia o golpe', () => {
-  const { b } = mk([IM], [CAP]);
-  b.pass(); const im = unit(b, IM);
-  b.act('im_deflector_shield', null);
-  assert.strictEqual(b.current, im, 'continua o turno do mesmo herói');
-  assert.ok(im.effects.some((e) => e.id === 'deflector_shield'));
-  assert.strictEqual(b.options().find((o) => o.skill.id === 'im_deflector_shield').ok, false);
-  b.pass(); until(b, im.uid);
-  assert.match(b.options().find((o) => o.skill.id === 'im_deflector_shield').reason, /recarga: 2|recarga: 1/i);
-  b.pass(); until(b, im.uid); b.pass(); until(b, im.uid);
-  assert.strictEqual(b.options().find((o) => o.skill.id === 'im_deflector_shield').ok, true, 'liberado após 2 rodadas bloqueadas');
+test('golpe sem hits (Widowmaker): aplica status sem rolar acerto, no alvo e em si', () => {
+  const b = mk(['black_widow', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99));
+  const bw = unit(b, 'black_widow'); until(b, bw.uid); const t = b.units.find((u) => u.team === 1);
+  const evs = b.act('black_widow__widowmaker', t.uid);
+  assert.ok(!evs.some((e) => e.t === 'miss' || e.t === 'dmg')); assert.deepStrictEqual(X(t.status.map((s) => s.nome)), ['Targeted']); assert.deepStrictEqual(X(bw.status.map((s) => s.nome)), ['Widowmaker']);
 });
-test('Deflector Shield absorve dano antes do HP', () => {
-  const { b } = mk([IM], [CAP]);
-  b.pass(); const im = unit(b, IM); b.act('im_deflector_shield', null); b.pass();
-  until(b, unit(b, CAP).uid); b.act('cap_shield_bash', im.uid);
-  assert.strictEqual(im.hp, 5000); assert.ok(b.events.some((e) => e.t === 'dmg' && e.absorbed > 0));
+test('alvos: área atinge todos os inimigos; "all allies" aplica nos aliados; "one ally" exige alvo aliado', () => {
+  const b = mk(['cyclops', 'dr_strange', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0));
+  const cy = unit(b, 'cyclops'); until(b, cy.uid);
+  b.act('cyclops__evasive_maneuvers', null);
+  b.units.filter((u) => u.team === 0).forEach((u) => assert.deepStrictEqual(X(u.status.map((s) => s.nome)), ['Combat Awareness', 'Agile']));
+  const ds = unit(b, 'dr_strange'); until(b, ds.uid);
+  assert.throws(() => b.act('dr_strange__shield_of_the_seraphim', b.units.find((u) => u.team === 1).uid), /Alvo inválido/);
+  b.act('dr_strange__shield_of_the_seraphim', cy.uid); assert.ok(cy.status.some((s) => s.nome === 'Shield of the Seraphim'));
 });
-test('Shield Guard: protege aliado (redireciona alvo único) e contra-ataca com Shield Bash', () => {
-  const c = load(); const b = c.createBattle(c.DATA, [[CAP, IM], [IM]], { rng: R(0.5) });
-  // ordem: Cap (agi 60) primeiro
-  const cap = unit(b, CAP), imA = b.units.find((u) => u.heroId === IM && u.team === 0), imB = b.units.find((u) => u.team === 1);
-  until(b, cap.uid); b.act('cap_shield_guard', null); assert.ok(cap.effects.some((e) => e.id === 'shield_guard'));
-  b.pass(); until(b, imB.uid);
-  const hpCap = cap.hp, hpB = imB.hp;
-  b.act('im_unibeam', imA.uid);                    // mira o aliado do Cap
-  assert.ok(b.events.some((e) => e.t === 'protect' && e.uid === cap.uid));
-  assert.strictEqual(imA.hp, imA.maxHp, 'aliado não é atingido');
-  assert.ok(cap.hp < hpCap || b.events.some((e) => e.t === 'miss'), 'Cap recebe no lugar');
-  assert.ok(b.events.some((e) => e.t === 'counter' && e.src === cap.uid), 'contra-ataque');
-  assert.ok(imB.hp < hpB, 'atacante levou Shield Bash');
+test('golpe pode atacar todos os inimigos e buffar todos os aliados (grupos independentes)', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['wolverine', 'wolverine', 'wolverine'], seq(0), (D) => { const s = D.golpes.find((x) => x.id === 'hulk__thunder_clap'); s.aplica = { enemyAll: [{ nome: 'Staggered', x: 1 }], allyAll: [{ nome: 'Inspired', x: 1 }] }; });
+  const hk = unit(b, 'hulk', 0); until(b, hk.uid); b.act('hulk__thunder_clap', null);
+  b.units.filter((u) => u.team === 0).forEach((u) => assert.deepStrictEqual(X(u.status.map((s) => s.nome)), ['Inspired']));
+  b.units.filter((u) => u.team === 1).forEach((u) => assert.deepStrictEqual(X(u.status.map((s) => s.nome)), ['Staggered']));
 });
-test('Burning: dano no início do turno do portador, reduz Defesa e expira em 2 turnos', () => {
-  const { b } = mk([CAP], [IM]);
-  until(b, unit(b, IM).uid); const cap = unit(b, CAP);
-  b.act('im_missile_barrage', null);
-  assert.ok(cap.effects.some((e) => e.id === 'burning'));
-  assert.strictEqual(Math.round(b.stat(cap, 'def')), Math.round(1400 * 0.8));
-  until(b, cap.uid); const hp = cap.hp; // dot já aplicado no início do turno
-  assert.ok(cap.hp < 7000 && b.events.some((e) => e.t === 'dmg' && e.dot === 'Burning'));
-  b.pass(); until(b, cap.uid); b.pass(); until(b, cap.uid);
-  assert.ok(!cap.effects.some((e) => e.id === 'burning'), 'expirou');
+test('ataque em área: um hit por inimigo vivo', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['wolverine', 'wolverine', 'wolverine'], seq(0));
+  const hk = unit(b, 'hulk', 0); until(b, hk.uid);
+  const evs = b.act('hulk__thunder_clap', null); assert.strictEqual(evs.filter((e) => e.t === 'dmg').length, 3);
 });
-test('Unibeam Focus: acumula até 3 e aumenta o dano do Unibeam; some se não renovado na rodada', () => {
-  const { b } = mk([IM], [CAP], R(0.5), (D) => { const s = D.golpes.find((x) => x.id === 'im_unibeam'); s.danoMin = s.danoMax = 1000; s.custo = 1; });
-  const im = unit(b, IM), cap = unit(b, CAP), d = [];
-  for (let i = 0; i < 4; i++) { until(b, im.uid); const h = cap.hp; b.act('im_unibeam', cap.uid); d.push(h - cap.hp); cap.hp = cap.maxHp = 99999; }
-    assert.ok(d[1] > d[0] && d[2] > d[1] && d[3] >= d[2]);
-  assert.strictEqual(im.effects.find((e) => e.id === 'unibeam_focus').stacks, 3);
-  until(b, im.uid); b.act('im_repulsor_ray', cap.uid); until(b, im.uid);
-  assert.ok(!im.effects.some((e) => e.id === 'unibeam_focus'), 'removido por não renovar');
+test('ordem de turno por Evasão', () => {
+  const b = mk(['black_widow', 'colossus', 'hulk'], ['hawkeye', 'dr_strange', 'iron_man']);
+  const ev = (u) => u.stats.eva; for (let i = 1; i < b.order.length; i++) assert.ok(ev(b.order[i - 1]) >= ev(b.order[i]) - 1e-9);
+  assert.strictEqual(b.order[0].heroId, 'black_widow');
 });
-test('Target Focus é consumido no 1º ataque de alvo único', () => {
-  const { b } = mk([IM], [CAP]);
-  const cap = unit(b, CAP), im = unit(b, IM);
-  b.act('cap_leading_strike', im.uid); assert.ok(im.effects.some((e) => e.id === 'target_focus'));
-  b.pass(); until(b, cap.uid); const h = im.hp; b.act('cap_shield_bash', im.uid);
-  assert.strictEqual(h - im.hp, Math.round((1400 + 1128 - 1800) * 1.25));
-  assert.ok(!im.effects.some((e) => e.id === 'target_focus'));
+test('stamina: custo, +20% por turno e bloqueio por falta', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99));
+  const a = b.current; assert.strictEqual(a.stamina, 100); b.act('hulk__titanic_hurl', null); assert.strictEqual(a.stamina, 70);
+  until(b, a.uid); assert.strictEqual(a.stamina, 90);
+  a.stamina = 5; assert.throws(() => b.act('hulk__hulk_smash', b.units.find((u) => u.team !== a.team).uid), /Stamina insuficiente/);
 });
-test('ação fora do momento / inválida é recusada', () => {
-  const { b } = mk([IM], [CAP]);
-  assert.throws(() => b.act('im_unibeam', unit(b, CAP).uid), /não pertence/);
-  assert.throws(() => b.act('cap_shield_bash', b.units.find((u) => u.team === 1).uid), /Alvo inválido/);
+test('cooldown: Titanic Hurl (3) fica indisponível nos 3 turnos seguintes do herói', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99));
+  const a = b.current; b.act('hulk__titanic_hurl', null);
+  for (let i = 0; i < 3; i++) { until(b, a.uid); assert.throws(() => b.act('hulk__titanic_hurl', null), /recarga/); a.stamina = 100; b.pass(); }
+  until(b, a.uid); a.stamina = 100; assert.doesNotThrow(() => b.act('hulk__titanic_hurl', null));
+});
+test('ações inválidas: golpe de outro herói, fora do turno, terminada', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk']);
+  assert.throws(() => b.act('iron_man__unibeam', b.units[3].uid), /não pertence/);
   assert.throws(() => b.next(), /ainda precisa agir/);
 });
 test('300 batalhas automáticas com times aleatórios sempre terminam', () => {
-  for (let s = 1; s <= 300; s++) {
-    let x = s * 9301 + 49297; const rng = () => ((x = (x * 233280 + 49297) % 233280) / 233280);
-    const c = load(), pick = () => [IM, CAP][Math.floor(rng() * 2)];
-    const b = c.createBattle(c.DATA, [[pick(), pick(), pick()], [pick(), pick(), pick()]], { rng });
-    b.runAuto(5000); assert.ok(b.phase === 'ended', 'seed ' + s + ' round ' + b.round);
-    b.units.forEach((u) => assert.ok(u.hp >= 0 && u.hp <= u.maxHp && u.alive === u.hp > 0));
-  }
+  const { DATA: D, createBattle } = load(), ids = D.herois.map((h) => h.id), pick = () => ids[Math.floor(Math.random() * ids.length)];
+  for (let i = 0; i < 300; i++) { const b = createBattle(D, [[pick(), pick(), pick()], [pick(), pick(), pick()]]); const w = b.runAuto(); assert.ok(b.phase === 'ended' && w >= -1, 'batalha ' + i); }
 });
 console.log('\n' + ok + ' ok, ' + fail + ' falhas'); process.exit(fail ? 1 : 0);

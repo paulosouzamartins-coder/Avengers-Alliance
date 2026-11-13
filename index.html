@@ -166,114 +166,85 @@ table{border-collapse:collapse;font-size:12px;width:max-content}th,td{border:1px
 </main>
 
 <script id="data">
-/* ============================================================================
-   DADOS DO JOGO — tudo que é "conteúdo" fica aqui. A engine (abaixo) não tem nenhum número de herói/golpe.
-   Valores marcados "provisorio" NÃO vêm da wiki (ela não informa): são adaptações para o simulador funcionar
-   e devem ser reescritas por você. Dano null = "n/a" na wiki → conta como 0.
-   ============================================================================ */
+/* GERADO por tools/importar.py a partir de dados/maa.xlsx — para mudar números, edite a planilha e rode o importador.
+   Fórmulas (engine): dano por hit = (Total damage / Hits) × (Ataque ÷ Defesa do alvo); chance de acerto = Hit Chance × (Precisão ÷ Evasão do alvo), máx. 100%;
+   crítico = dano × config.danoCritico (PROVISÓRIO); ordem de turno = Evasão. Status (debuff/buff/propriedade) só são nomes, sem efeito, até as bibliotecas existirem. */
 const DATA = {
-  versao: '0.2.0',
-  config: {
-    // Modos planejados (NÃO implementados; só registro para o desenho não assumir jogo solo): sempre 3x3.
-    modos: { pve: '1 jogador x máquina (3 heróis do jogador)', pvp: '1 jogador x 1 jogador (3 heróis cada)', pvp6: '3 jogadores x 3 jogadores (1 herói por jogador)' },
-    // Tier (barras da wiki) → valor. valor = base + passo × tier. ESCALA PRÓPRIA (adaptação).
-    tiers: { hp: { base: 1000, passo: 2000 }, atk: { base: 200, passo: 400 }, def: { base: 200, passo: 400 }, agi: { base: 0, passo: 20 } },
-    staminaInicial: 100,
-    staminaRecupera: 20,   // % por turno do herói (pedido)
-    danoCritico: 1.5,      // provisorio
-    danoMinimoPct: 10,     // dano nunca menor que 10% do bruto (provisorio)
-    hitMin: 5, hitMax: 100 // limites de chance de acerto (provisorio)
-  },
-  classes: {
-    Blaster: { vantagens: [], desvantagens: [] }, Bruiser: { vantagens: [], desvantagens: [] }, Scrapper: { vantagens: [], desvantagens: [] },
-    Infiltrator: { vantagens: [], desvantagens: [] }, Tactician: { vantagens: [], desvantagens: [] }, Generalist: { vantagens: [], desvantagens: [] }
-  },
-
-  /* ---------- BIBLIOTECA DE DEBUFFS (vermelho) e BUFFS (verde) ----------
-     Os golpes só citam o id. Mudou aqui = mudou em todos os heróis que usam.
-     duracao: turnos do portador (null = fica até ser removido). mods:
-       stat {stat:'atk|def|agi', pct}  · hitPts {pts} (muda o Hit% dos golpes de quem tem)
-       damageTaken {pct, tag?, single?, consume?}  · skillBoost {skills:[ids], dmgPct, hitPts, critPts} (por acúmulo) */
-  efeitos: {
-    lock_on: { nome: 'Lock-On', tipo: 'debuff', duracao: 3, desc: 'Recebe dano adicional de ataques à distância (Ranged).',
-      mods: [{ t: 'damageTaken', pct: 25, tag: 'Ranged' }], provisorio: ['mods.pct (a wiki não informa o %)'] },
-    burning: { nome: 'Burning', tipo: 'debuff', duracao: 2, desc: 'Sofre dano no início de cada turno e tem a Defesa reduzida. Cancelado por Chilled.',
-      dot: { pctVidaMax: 5 }, mods: [{ t: 'stat', stat: 'def', pct: -20 }], cancelaCom: ['chilled'], provisorio: ['dot.pctVidaMax', 'mods.pct'] },
-    dizzy: { nome: 'Dizzy', tipo: 'debuff', duracao: 3, desc: 'Precisão reduzida em 25% (aqui: -25 pontos no Hit% dos golpes do portador).',
-      mods: [{ t: 'hitPts', pts: -25 }], provisorio: ['interpretação de "-25%" como pontos'] },
-    target_focus: { nome: 'Target Focus', tipo: 'debuff', duracao: 2, desc: 'O próximo ataque de alvo único contra o portador causa dano extra (consumido ao acertar).',
-      mods: [{ t: 'damageTaken', pct: 25, single: true, consume: true }], provisorio: ['mods.pct', 'descrição inferida'] },
-    deflector_shield: { nome: 'Deflector Shield', tipo: 'buff', duracao: 2, desc: 'Escudo que absorve dano até acabar. Imune a Stun.',
-      escudo: { absorve: 1500 }, imune: ['Stun'], provisorio: ['escudo.absorve'] },
-    shield_guard: { nome: 'Shield Guard', tipo: 'buff', duracao: 1, desc: 'Protege os aliados de ataques de alvo único e em área (o portador recebe no lugar). Contra-ataca quem o atacar com Shield Bash.',
-      protege: true, contraGolpe: 'cap_shield_bash', provisorio: ['regra de proteção em área (adaptação)'] },
-    unibeam_focus: { nome: 'Unibeam Focus', tipo: 'buff', duracao: null, desc: 'Aumenta dano, precisão e crítico do Unibeam. Acumula até 3. Some se não for renovado a cada rodada.',
-      maxAcumulos: 3, renovaPorRodada: true, mods: [{ t: 'skillBoost', skills: ['im_unibeam'], dmgPct: 10, hitPts: 5, critPts: 5 }], provisorio: ['mods (por acúmulo)'] }
-  },
-
-  /* ---------- BIBLIOTECA DE PROPRIEDADES ESPECIAIS (azul) ---------- */
-  propriedades: {
-    quick_action: { nome: 'Quick Action', desc: 'Depois de usar o golpe o herói age de novo no mesmo turno (turno livre).', turnoLivre: true },
-    deadly_crits: { nome: 'Deadly Crits', desc: 'Críticos desse golpe causam dano maior que o normal.', danoCritico: 2.0, provisorio: ['danoCritico'] }
-  },
-
-  /* ---------- HERÓIS (somente forma base). tiers 1–6 vêm das barras da wiki: Health/Attack/Defense/Evasion(=agilidade) ---------- */
+  versao: '0.3.0',
+  config: {"modos": {"pve": "1 jogador x máquina (3 heróis do jogador)", "pvp": "1 jogador x 1 jogador (3 heróis cada)", "pvp6": "3 jogadores x 3 jogadores (1 herói por jogador)"}, "staminaInicial": 100, "staminaRecupera": 20, "danoCritico": 1.5},
+  classes: {"Blaster": {"vantagens": [], "desvantagens": []}, "Bruiser": {"vantagens": [], "desvantagens": []}, "Scrapper": {"vantagens": [], "desvantagens": []}, "Infiltrator": {"vantagens": [], "desvantagens": []}, "Tactician": {"vantagens": [], "desvantagens": []}, "Generalist": {"vantagens": [], "desvantagens": []}},
   herois: [
-    { id: 'iron_man', nome: 'Iron Man', classe: 'Blaster', afiliacoes: ['Avengers', 'All-New, All-Different Avengers', 'Illuminati', 'S.H.I.E.L.D.', 'Guardians of the Galaxy', 'Hellfire Club', 'West Coast Avengers'],
-      tiers: { hp: 2, atk: 4, def: 4, agi: 2 }, passivas: [], golpes: ['im_repulsor_ray', 'im_missile_barrage', 'im_deflector_shield', 'im_unibeam'],
-      face: 'assets/face/iron_man.png', smallportrait: 'assets/smallportrait/iron_man.png', portrait: 'assets/portrait/iron_man.png', fonte: 'https://avengersalliance.fandom.com/wiki/Iron_Man', bloqueado: false,
-      obs: 'Tiers lidos das barras (Bar01=cheia, 5 barras visíveis — a wiki mostrou 5, não 6). Stats brutos da wiki (nível 2): HP 117, Atk 29, Def 29, Acc 26, Eva 23. "Effects:" vazio na wiki. Dano dos golpes base = n/a na wiki → 0 (só o Ataque do herói causa dano).' },
-    { id: 'captain_america', nome: 'Captain America', classe: 'Tactician', afiliacoes: ['Avengers', 'Illuminati', 'S.H.I.E.L.D.', 'The Invaders', 'Secret Avengers'],
-      tiers: { hp: 3, atk: 3, def: 3, agi: 3 }, passivas: [], golpes: ['cap_shield_bash', 'cap_leading_strike', 'cap_shield_throw', 'cap_shield_guard'],
-      face: 'assets/face/captain_america.png', smallportrait: 'assets/smallportrait/captain_america.png', portrait: 'assets/portrait/captain_america.png', fonte: 'https://avengersalliance.fandom.com/wiki/Captain_America', bloqueado: false,
-      obs: 'Tiers lidos das barras (3 em tudo). Stats brutos da wiki: HP 7153, Atk/Def/Acc/Eva 1431. "Effects:" vazio na wiki. Efeitos de Leading Strike (Target Focus) inferidos pela leitura da página.' },
-    { id: 'hulk', nome: 'Hulk', classe: 'Bruiser', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/hulk.png', smallportrait: 'assets/smallportrait/hulk.png', portrait: 'assets/portrait/hulk.png',
-      fonte: 'https://avengersalliance.fandom.com/wiki/Hulk', bloqueado: true, motivo: 'Página da wiki lida sem stats, afiliação nem golpes (texto truncado). Classe vem do seu pedido.', obs: '' },
-    { id: 'wolverine', nome: 'Wolverine', classe: 'Scrapper', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/wolverine.png', smallportrait: 'assets/smallportrait/wolverine.png', portrait: 'assets/portrait/wolverine.png',
-      fonte: 'https://avengersalliance.fandom.com/wiki/Wolverine', bloqueado: true, motivo: 'Página da wiki não pôde ser acessada (erro). Classe vem do seu pedido.', obs: '' },
-    { id: 'spider_man', nome: 'Spider-Man', classe: 'Infiltrator', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/spider_man.png', smallportrait: 'assets/smallportrait/spider_man.png', portrait: 'assets/portrait/spider_man.png',
-      fonte: 'https://avengersalliance.fandom.com/wiki/Spider_Man', bloqueado: true, motivo: 'Página da wiki não pôde ser acessada (erro). Classe vem do seu pedido.', obs: '' },
-    { id: 'beast', nome: 'Beast', classe: 'Generalist', afiliacoes: [], tiers: null, passivas: [], golpes: [], face: 'assets/face/beast.png', smallportrait: 'assets/smallportrait/beast.png', portrait: 'assets/portrait/beast.png',
-      fonte: 'https://avengersalliance.fandom.com/wiki/Beast', bloqueado: true, motivo: 'Página da wiki lida sem stats, afiliação nem golpes (texto truncado). Classe vem do seu pedido.', obs: '' }
+    {"id": "wolverine", "nome": "Wolverine", "classe": "Scrapper", "hp": 137.0, "stamina": 124.0, "atk": 41.0, "def": 35.0, "acc": 35.0, "eva": 31.0, "afiliacoes": ["Avengers", "Horseman of Apocalypse", "Weapon X", "X-Force", "X-Men"], "passivas": ["Bersker Rage", "Come At Me Bub", "Healing Factor"], "bio": "Born in 19th century Canada, James 'Logan' Howlett was a frail child. His mutant abilities did not manifest themselves until adolescence, after which he became a drifter and soldier. He drew the attention of several shadowy black-ops organizations, and suffered experimental procedures that bonded Adamantium to his skeleton and claws. Now a committed member of the X-Men, Wolverine carries a mortal grudge against Victor Creed, better known as Sabretooth.", "golpes": ["wolverine__adamantium_claws", "wolverine__berserker_frenzy", "wolverine__savage_rend", "wolverine__feral_ambush"], "face": "assets/face/Wolverine_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Wolverine_Dialogue_1.webp", "portrait": "assets/portrait/Wolverine_Portrait_Art.webp", "bloqueado": false},
+    {"id": "hulk", "nome": "Hulk", "classe": "Bruiser", "hp": 162.0, "stamina": 124.0, "atk": 38.0, "def": 38.0, "acc": 28.0, "eva": 28.0, "afiliacoes": ["Avengers", "Horseman of Apocalypse", "Illuminati", "S.H.I.E.L.D.", "The Defenders", "The Worthy"], "passivas": ["Getting Angry"], "bio": "Child prodgy Bruce Banner became a weapon", "golpes": ["hulk__rage_punch", "hulk__hulk_smash", "hulk__thunder_clap", "hulk__titanic_hurl"], "face": "assets/face/Hulk_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Hulk_Dialogue_1.webp", "portrait": "assets/portrait/Hulk_Portrait_Art.webp", "bloqueado": false},
+    {"id": "iron_man", "nome": "Iron Man", "classe": "Blaster", "hp": 124.0, "stamina": 124.0, "atk": 38.0, "def": 38.0, "acc": 35.0, "eva": 31.0, "afiliacoes": ["Avengers", "All-New All-Different Avengers", "Guardians of the Galaxy", "Hellfire Club", "Illuminati", "S.H.I.E.L.D.", "West Coast Avengers"], "passivas": [], "bio": "Tony Stark: visionary playboy billionaire and founding Avenger; one of S.H.I.E.L.D.'s most formidable combat assets thanks to his constantly evolving armor. Cynical exterior hiding deep confidence in himself and human ingenuity. [RESUMO: a ferramenta não devolve o texto integral]", "golpes": ["iron_man__repulsor_ray", "iron_man__missile_barrage", "iron_man__deflector_shield", "iron_man__unibeam"], "face": "assets/face/Iron_Man_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Iron_Man_Dialogue_1.webp", "portrait": "assets/portrait/Iron_Man_Portrait_Art.webp", "bloqueado": false},
+    {"id": "captain_america", "nome": "Captain America", "classe": "Tactician", "hp": 137.0, "stamina": 137.0, "atk": 35.0, "def": 35.0, "acc": 35.0, "eva": 35.0, "afiliacoes": ["Avengers", "Illuminati", "S.H.I.E.L.D.", "The Invaders", "Secret Avengers"], "passivas": [], "bio": "Steve Rogers: product of a WWII super soldier experiment, found frozen in ice years after a disastrous mission over Europe. Adjusting to the modern era, he brings old-fashioned determination to the Avengers. [RESUMO: a ferramenta não devolve o texto integral]", "golpes": ["captain_america__shield_bash", "captain_america__leading_strike", "captain_america__shield_throw", "captain_america__shield_guard"], "face": "assets/face/Captain_America_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Captain_America_Dialogue_1.webp", "portrait": "assets/portrait/Captain_America_Portrait_Art.webp", "bloqueado": false},
+    {"id": "black_widow", "nome": "Black Widow", "classe": "Infiltrator", "hp": 124.0, "stamina": 149.0, "atk": 31.0, "def": 31.0, "acc": 35.0, "eva": 41.0, "afiliacoes": [], "passivas": [], "bio": "", "golpes": ["black_widow__martial_arts_combo", "black_widow__widows_bite", "black_widow__flying_kick", "black_widow__widowmaker"], "face": "assets/face/Black_Widow_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Black_Widow_Dialogue_1.webp", "portrait": "assets/portrait/Black_Widow_Portrait_Art.webp", "bloqueado": false},
+    {"id": "hawkeye", "nome": "Hawkeye", "classe": "Tactician", "hp": 124.0, "stamina": 149.0, "atk": 31.0, "def": 31.0, "acc": 41.0, "eva": 38.0, "afiliacoes": [], "passivas": [], "bio": "", "golpes": ["hawkeye__sure_shot", "hawkeye__arrow_volley", "hawkeye__trick_arrow", "hawkeye__pinpoint_target"], "face": "assets/face/Hawkeye_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Hawkeye_Dialogue_1.webp", "portrait": "assets/portrait/Hawkeye_Portrait_Art.webp", "bloqueado": false},
+    {"id": "colossus", "nome": "Colossus", "classe": "Bruiser", "hp": 162.0, "stamina": 137.0, "atk": 35.0, "def": 41.0, "acc": 28.0, "eva": 28.0, "afiliacoes": [], "passivas": [], "bio": "", "golpes": ["colossus__steel_fists", "colossus__steel_curtain", "colossus__decimate", "colossus__colossal_smash"], "face": "assets/face/Colossus_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Colossus_Dialogue_1.webp", "portrait": "assets/portrait/Colossus_Portrait_Art.webp", "bloqueado": false},
+    {"id": "cyclops", "nome": "Cyclops", "classe": "Tactician", "hp": 137.0, "stamina": 137.0, "atk": 35.0, "def": 35.0, "acc": 38.0, "eva": 31.0, "afiliacoes": [], "passivas": [], "bio": "", "golpes": ["cyclops__optic_blast", "cyclops__exploit_weakness", "cyclops__evasive_maneuvers", "cyclops__mega_optic_blast"], "face": "assets/face/Cyclops_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Cyclops_Dialogue_1.webp", "portrait": "assets/portrait/Cyclops_Portrait_Art.webp", "bloqueado": false},
+    {"id": "daredevil", "nome": "Daredevil", "classe": "Bruiser", "hp": 137.0, "stamina": 149.0, "atk": 31.0, "def": 35.0, "acc": 35.0, "eva": 38.0, "afiliacoes": [], "passivas": [], "bio": "", "golpes": ["daredevil__billy_club", "daredevil__radar_sense", "daredevil__snap_kick", "daredevil__manrikigusari"], "face": "assets/face/Daredevil_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Daredevil_Dialogue_1.webp", "portrait": "assets/portrait/Daredevil_Portrait_Art.webp", "bloqueado": false},
+    {"id": "dr_strange", "nome": "Dr. Strange", "classe": "Blaster", "hp": 124.0, "stamina": 112.0, "atk": 41.0, "def": 28.0, "acc": 41.0, "eva": 31.0, "afiliacoes": [], "passivas": [], "bio": "", "golpes": ["dr_strange__bolts_of_balthakk", "dr_strange__teresing_boost", "dr_strange__vapors_of_valtorr", "dr_strange__shield_of_the_seraphim"], "face": "assets/face/Dr._Strange_Icon_Large_1.webp", "smallportrait": "assets/smallportrait/Dr._Strange_Dialogue_1.webp", "portrait": "assets/portrait/Dr._Strange_Portrait_Art.webp", "bloqueado": false}
   ],
-
-  /* ---------- GOLPES ----------
-     custo: % de stamina · alvo: enemy1 | enemyAll | ally1 | allyAll | self · dano: min/max (usa a média; null = n/a = 0)
-     aplica: quais efeitos da biblioteca o golpe coloca em cada grupo (enemy1, enemyAll, ally1, allyAll, self) — sem duração aqui. */
   golpes: [
-    { id: 'im_repulsor_ray', heroi: 'iron_man', nome: 'Repulsor Ray', icone: 'assets/skills/repulsor_ray.jpg', custo: 16, alvo: 'enemy1', danoMin: null, danoMax: null, golpes: 2, hit: 88, crit: 11,
-      tipos: ['Ranged', 'Energy', 'Tech'], props: [], aplica: { enemy1: ['lock_on'] }, recarga: 0, obs: 'Dano n/a na wiki (base) → 0. Tipos/alvo lidos da página.' },
-    { id: 'im_missile_barrage', heroi: 'iron_man', nome: 'Missile Barrage', icone: 'assets/skills/missile_barrage.jpg', custo: 15, alvo: 'enemyAll', danoMin: null, danoMax: null, golpes: 1, hit: 88, crit: 11,
-      tipos: ['Ranged', 'Explosion', 'Tech'], props: [], aplica: { enemyAll: ['burning'] }, recarga: 0, obs: 'Dano n/a na wiki (base) → 0.' },
-    { id: 'im_deflector_shield', heroi: 'iron_man', nome: 'Deflector Shield', icone: 'assets/skills/deflector_shield.jpg', custo: 27, alvo: 'self', danoMin: null, danoMax: null, golpes: 0, hit: null, crit: null,
-      tipos: ['Buff', 'Tech'], props: ['quick_action'], aplica: { self: ['deflector_shield'] }, recarga: 2, obs: 'Não causa dano. Recarga 2 rodadas.' },
-    { id: 'im_unibeam', heroi: 'iron_man', nome: 'Unibeam', icone: 'assets/skills/unibeam.jpg', custo: 25, alvo: 'enemy1', danoMin: null, danoMax: null, golpes: 1, hit: 88, crit: 11,
-      tipos: ['Ranged', 'Energy', 'Tech', 'Unibeam'], props: ['deadly_crits'], aplica: { self: ['unibeam_focus'] }, recarga: 0, obs: 'Dano n/a na wiki (base) → 0. Unibeam Focus no próprio herói (nota de patch 2014).' },
-
-    { id: 'cap_shield_bash', heroi: 'captain_america', nome: 'Shield Bash', icone: 'assets/skills/shield_bash.jpg', custo: 18, alvo: 'enemy1', danoMin: 868, danoMax: 1388, golpes: 1, hit: 88, crit: 11,
-      tipos: ['Melee', 'Vibranium'], props: [], aplica: { enemy1: ['dizzy'] }, recarga: 0, obs: 'Dano médio = 1128.' },
-    { id: 'cap_leading_strike', heroi: 'captain_america', nome: 'Leading Strike', icone: 'assets/skills/leading_strike.jpg', custo: 10, alvo: 'enemy1', danoMin: 1066, danoMax: 1279, golpes: 1, hit: 92, crit: 11,
-      tipos: ['Melee', 'Unarmed'], props: [], aplica: { enemy1: ['target_focus'] }, recarga: 0, obs: 'Dano médio = 1172,5.' },
-    { id: 'cap_shield_throw', heroi: 'captain_america', nome: 'Shield Throw', icone: 'assets/skills/shield_throw.jpg', custo: 25, alvo: 'enemyAll', danoMin: 570, danoMax: 855, golpes: 1, hit: 94, crit: 12,
-      tipos: ['Ranged', 'Vibranium'], props: [], aplica: { enemyAll: ['lock_on'] }, recarga: 0, obs: 'Dano médio = 712,5.' },
-    { id: 'cap_shield_guard', heroi: 'captain_america', nome: 'Shield Guard', icone: 'assets/skills/shield_guard.jpg', custo: 15, alvo: 'self', danoMin: null, danoMax: null, golpes: 0, hit: null, crit: null,
-      tipos: ['Buff', 'Vibranium'], props: ['quick_action'], aplica: { self: ['shield_guard'] }, recarga: 2, obs: 'Não causa dano. Recarga 2 rodadas.' }
+    {"id": "wolverine__adamantium_claws", "heroi": "wolverine", "nome": "Adamantium Claws", "icone": "assets/skills/Wolverine-Adamantium_Claws.webp", "custo": 16.0, "alvo": "enemy1", "dano": 8.0, "recarga": 0, "golpes": 2, "hit": 88.0, "crit": 35.0, "tipos": ["Slashing", "Melee"], "props": ["Adamantium"], "aplica": {"enemy1": [{"nome": "Ravaged", "x": 1}, {"nome": "Bleeding", "x": 2}]}},
+    {"id": "wolverine__berserker_frenzy", "heroi": "wolverine", "nome": "Berserker Frenzy", "icone": "assets/skills/Wolverine-Berserker_Frenzy.webp", "custo": 25.0, "alvo": "enemy1", "dano": 9.0, "recarga": 0, "golpes": 4, "hit": 89.0, "crit": 13.0, "tipos": ["Slashing", "Melee"], "props": ["Adamantium", "Deadly Crits", "Exploits Bleeds"], "aplica": {}},
+    {"id": "wolverine__savage_rend", "heroi": "wolverine", "nome": "Savage Rend", "icone": "assets/skills/Wolverine-Savage_Rend.webp", "custo": 20.0, "alvo": "enemy1", "dano": 28.0, "recarga": 0, "golpes": 1, "hit": 89.0, "crit": 23.0, "tipos": ["Slashing", "Melee"], "props": ["Adamantium"], "aplica": {"enemy1": [{"nome": "Cornered", "x": 1}, {"nome": "Tenderized", "x": 1}]}},
+    {"id": "wolverine__feral_ambush", "heroi": "wolverine", "nome": "Feral Ambush", "icone": "assets/skills/Wolverine-Feral_Ambush.webp", "custo": 20.0, "alvo": "enemy1", "dano": 14.0, "recarga": 2, "golpes": 1, "hit": 89.0, "crit": 23.0, "tipos": ["Slashing", "Melee"], "props": ["Adamantium", "Stealth"], "aplica": {"enemy1": [{"nome": "Stun", "x": 1}]}},
+    {"id": "hulk__rage_punch", "heroi": "hulk", "nome": "Rage Punch", "icone": "assets/skills/Hulk-Rage_Punch.webp", "custo": 10.0, "alvo": "enemy1", "dano": 23.0, "recarga": 0, "golpes": 1, "hit": 74.0, "crit": 17.0, "tipos": ["Unarmed", "Melee"], "props": ["High Crits"], "aplica": {"self": [{"nome": "Hulk Up", "x": 1}]}},
+    {"id": "hulk__hulk_smash", "heroi": "hulk", "nome": "Hulk Smash", "icone": "assets/skills/Hulk-Hulk_Smash.webp", "custo": 20.0, "alvo": "enemy1", "dano": 24.0, "recarga": 0, "golpes": 1, "hit": 74.0, "crit": 4.0, "tipos": ["Melee"], "props": ["Anger Unleashed", "Deadly Crits"], "aplica": {}},
+    {"id": "hulk__thunder_clap", "heroi": "hulk", "nome": "Thunder Clap", "icone": "assets/skills/Hulk-Thunder_Clap.webp", "custo": 15.0, "alvo": "enemyAll", "dano": 8.0, "recarga": 0, "golpes": 1, "hit": 89.0, "crit": 89.0, "tipos": ["Ranged", "Sonic"], "props": ["Anger Unleashed"], "aplica": {"enemyAll": [{"nome": "Staggered", "x": 1}]}},
+    {"id": "hulk__titanic_hurl", "heroi": "hulk", "nome": "Titanic Hurl", "icone": "assets/skills/Hulk-Titanic_Hurl.webp", "custo": 30.0, "alvo": "enemyAll", "dano": 13.0, "recarga": 3, "golpes": 1, "hit": 57.0, "crit": 2.0, "tipos": ["Ranged"], "props": ["Anger Unleashed"], "aplica": {"enemyAll": [{"nome": "Stun", "x": 1}]}},
+    {"id": "iron_man__repulsor_ray", "heroi": "iron_man", "nome": "Repulsor Ray", "icone": "assets/skills/Iron_Man-Repulsor_Ray.webp", "custo": 16.0, "alvo": "enemy1", "dano": 16.0, "recarga": 0, "golpes": 2, "hit": 88.0, "crit": 11.0, "tipos": ["Ranged", "Energy", "Tech"], "props": [], "aplica": {"enemy1": [{"nome": "Lock-On", "x": 1}]}},
+    {"id": "iron_man__missile_barrage", "heroi": "iron_man", "nome": "Missile Barrage", "icone": "assets/skills/Iron_Man-Missile_Barrage.webp", "custo": 15.0, "alvo": "enemyAll", "dano": 11.0, "recarga": 0, "golpes": 1, "hit": 88.0, "crit": 11.0, "tipos": ["Explosion", "Ranged"], "props": [], "aplica": {"enemyAll": [{"nome": "Burning", "x": 1}]}},
+    {"id": "iron_man__deflector_shield", "heroi": "iron_man", "nome": "Deflector Shield", "icone": "assets/skills/Iron_Man-Deflector_Shield.webp", "custo": 27.0, "alvo": "self", "dano": 0.0, "recarga": 2, "golpes": 0, "hit": null, "crit": 0, "tipos": ["Buff", "Tech"], "props": ["Quick Action"], "aplica": {"self": [{"nome": "Deflector Shield", "x": 1}]}},
+    {"id": "iron_man__unibeam", "heroi": "iron_man", "nome": "Unibeam", "icone": "assets/skills/Iron_Man-Unibeam.webp", "custo": 25.0, "alvo": "enemy1", "dano": 33.0, "recarga": 0, "golpes": 1, "hit": 88.0, "crit": 11.0, "tipos": ["Ranged", "Energy", "Tech"], "props": ["Deadly Crits"], "aplica": {"enemy1": [{"nome": "Unibeam Focus", "x": 1}]}},
+    {"id": "captain_america__shield_bash", "heroi": "captain_america", "nome": "Shield Bash", "icone": "assets/skills/Captain_America-Shield_Bash.webp", "custo": 18.0, "alvo": "enemy1", "dano": 27.0, "recarga": 0, "golpes": 1, "hit": 88.0, "crit": 11.0, "tipos": ["Melee", "Vibranium"], "props": [], "aplica": {"enemy1": [{"nome": "Dizzy", "x": 1}]}},
+    {"id": "captain_america__leading_strike", "heroi": "captain_america", "nome": "Leading Strike", "icone": "assets/skills/Captain_America-Leading_Strike.webp", "custo": 10.0, "alvo": "enemy1", "dano": 29.0, "recarga": 0, "golpes": 1, "hit": 92.0, "crit": 11.0, "tipos": ["Unarmed", "Melee"], "props": [], "aplica": {"enemy1": [{"nome": "Target Focus", "x": 1}]}},
+    {"id": "captain_america__shield_throw", "heroi": "captain_america", "nome": "Shield Throw", "icone": "assets/skills/Captain_America-Shield_Throw.webp", "custo": 25.0, "alvo": "enemyAll", "dano": 17.0, "recarga": 0, "golpes": 1, "hit": 94.0, "crit": 12.0, "tipos": ["Ranged", "Vibranium"], "props": [], "aplica": {"enemyAll": [{"nome": "Lock-On", "x": 1}]}},
+    {"id": "captain_america__shield_guard", "heroi": "captain_america", "nome": "Shield Guard", "icone": "assets/skills/Captain_America-Shield_Guard.webp", "custo": 15.0, "alvo": "self", "dano": 0.0, "recarga": 2, "golpes": 0, "hit": null, "crit": 0, "tipos": ["Buff"], "props": ["Quick Action"], "aplica": {"self": [{"nome": "Shield Guard", "x": 1}]}},
+    {"id": "black_widow__martial_arts_combo", "heroi": "black_widow", "nome": "Martial Arts Combo", "icone": "assets/skills/Black_Widow-Martial_Arts_Combo.webp", "custo": 9.0, "alvo": "enemy1", "dano": 9.0, "recarga": 0, "golpes": 2, "hit": 88.0, "crit": 11.0, "tipos": ["Unarmed", "Melee"], "props": ["Exploit Combos"], "aplica": {"enemy1": [{"nome": "Combo Setup", "x": 1}]}},
+    {"id": "black_widow__widows_bite", "heroi": "black_widow", "nome": "Widow's Bite", "icone": "assets/skills/Black_Widow-Widow's_Bite.webp", "custo": 18.0, "alvo": "enemy1", "dano": 23.0, "recarga": 0, "golpes": 1, "hit": 88.0, "crit": 11.0, "tipos": ["Ranged", "Gun"], "props": [], "aplica": {"enemy1": [{"nome": "Incapacitation", "x": 1}, {"nome": "Weakened", "x": 1}]}},
+    {"id": "black_widow__flying_kick", "heroi": "black_widow", "nome": "Flying Kick", "icone": "assets/skills/Black_Widow-Flying_Kick.webp", "custo": 23.0, "alvo": "enemy1", "dano": 33.0, "recarga": 0, "golpes": 1, "hit": 77.0, "crit": 10.0, "tipos": ["Unarmed", "Melee"], "props": [], "aplica": {"enemy1": [{"nome": "Remove Buffs", "x": 1}]}},
+    {"id": "black_widow__widowmaker", "heroi": "black_widow", "nome": "Widowmaker", "icone": "assets/skills/Black_Widow-Widowmaker.webp", "custo": 7.0, "alvo": "enemy1", "dano": 0.0, "recarga": 1, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Buff", "Debuff"], "props": ["Quick Action", "Subtle"], "aplica": {"enemy1": [{"nome": "Targeted", "x": 1}], "self": [{"nome": "Widowmaker", "x": 1}]}},
+    {"id": "hawkeye__sure_shot", "heroi": "hawkeye", "nome": "Sure Shot", "icone": "assets/skills/Hawkeye-Sure_Shot.webp", "custo": 10.0, "alvo": "enemy1", "dano": 23.0, "recarga": 0, "golpes": 1, "hit": 100.0, "crit": 23.0, "tipos": ["Ranged"], "props": [], "aplica": {}},
+    {"id": "hawkeye__arrow_volley", "heroi": "hawkeye", "nome": "Arrow Volley", "icone": "assets/skills/Hawkeye-Arrow_Volley.webp", "custo": 20.0, "alvo": "enemyAll", "dano": 14.0, "recarga": 0, "golpes": 1, "hit": 100.0, "crit": 23.0, "tipos": ["Ranged"], "props": [], "aplica": {}},
+    {"id": "hawkeye__trick_arrow", "heroi": "hawkeye", "nome": "Trick Arrow", "icone": "assets/skills/Hawkeye-Trick_Arrow.webp", "custo": 15.0, "alvo": "enemy1", "dano": 10.0, "recarga": 2, "golpes": 1, "hit": 100.0, "crit": 23.0, "tipos": ["Ranged"], "props": ["Stun"], "aplica": {}},
+    {"id": "hawkeye__pinpoint_target", "heroi": "hawkeye", "nome": "Pinpoint Target", "icone": "assets/skills/Hawkeye-Pinpoint_Target.webp", "custo": 20.0, "alvo": "enemy1", "dano": 0.0, "recarga": 1, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Debuff"], "props": ["Subtle", "Free Action"], "aplica": {"enemy1": [{"nome": "Pinpoint Target", "x": 1}]}},
+    {"id": "colossus__steel_fists", "heroi": "colossus", "nome": "Steel Fists", "icone": "assets/skills/Colossus-Steel_Fists.webp", "custo": 15.0, "alvo": "enemy1", "dano": 13.0, "recarga": 0, "golpes": 2, "hit": 74.0, "crit": 4.0, "tipos": ["Unarmed", "Melee"], "props": [], "aplica": {"enemy1": [{"nome": "Exposed", "x": 1}]}},
+    {"id": "colossus__steel_curtain", "heroi": "colossus", "nome": "Steel Curtain", "icone": "assets/skills/Colossus-Steel_Curtain.webp", "custo": 10.0, "alvo": "self", "dano": 0.0, "recarga": 1, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Buff"], "props": ["Quick Action"], "aplica": {"self": [{"nome": "Steel Curtain", "x": 1}]}},
+    {"id": "colossus__decimate", "heroi": "colossus", "nome": "Decimate", "icone": "assets/skills/Colossus-Decimate.webp", "custo": 30.0, "alvo": "enemy1", "dano": 38.0, "recarga": 0, "golpes": 1, "hit": 74.0, "crit": 4.0, "tipos": ["Unarmed", "Melee"], "props": ["Exploit Exposure"], "aplica": {}},
+    {"id": "colossus__colossal_smash", "heroi": "colossus", "nome": "Colossal Smash", "icone": "assets/skills/Colossus-Colossal_Smash.webp", "custo": 25.0, "alvo": "enemyAll", "dano": 18.0, "recarga": 0, "golpes": 1, "hit": 94.0, "crit": 0, "tipos": ["Ground"], "props": ["Ground Attack"], "aplica": {"enemyAll": [{"nome": "Slowed", "x": 1}]}},
+    {"id": "cyclops__optic_blast", "heroi": "cyclops", "nome": "Optic Blast", "icone": "assets/skills/Cyclops-Optic_Blast.webp", "custo": 20.0, "alvo": "enemy1", "dano": 28.0, "recarga": 0, "golpes": 1, "hit": 94.0, "crit": 11.0, "tipos": ["Kinetic", "Ranged"], "props": ["Deadly Crits"], "aplica": {"enemy1": [{"nome": "Flanked", "x": 1}]}},
+    {"id": "cyclops__exploit_weakness", "heroi": "cyclops", "nome": "Exploit Weakness", "icone": "assets/skills/Cyclops-Exploit_Weakness.webp", "custo": 10.0, "alvo": "enemy1", "dano": 22.0, "recarga": 0, "golpes": 1, "hit": 87.0, "crit": 21.0, "tipos": ["Unarmed", "Melee"], "props": [], "aplica": {"enemy1": [{"nome": "Disadvantage", "x": 1}, {"nome": "Weak Point", "x": 1}]}},
+    {"id": "cyclops__evasive_maneuvers", "heroi": "cyclops", "nome": "Evasive Maneuvers", "icone": "assets/skills/Cyclops-Evasive_Maneuvers.webp", "custo": 15.0, "alvo": "allyAll", "dano": 0.0, "recarga": 3, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Buff"], "props": ["Quick Action"], "aplica": {"allyAll": [{"nome": "Combat Awareness", "x": 1}, {"nome": "Agile", "x": 1}]}},
+    {"id": "cyclops__mega_optic_blast", "heroi": "cyclops", "nome": "Mega Optic Blast", "icone": "assets/skills/Cyclops-Mega_Optic_Blast.webp", "custo": 30.0, "alvo": "enemyAll", "dano": 16.0, "recarga": 0, "golpes": 1, "hit": 98.0, "crit": 7.0, "tipos": ["Kinetic", "Ranged"], "props": ["Deadly Crits"], "aplica": {"enemyAll": [{"nome": "Incapacitation", "x": 1}]}},
+    {"id": "daredevil__billy_club", "heroi": "daredevil", "nome": "Billy Club", "icone": "assets/skills/Daredevil-Billy_Club.webp", "custo": 10.0, "alvo": "enemy1", "dano": 7.0, "recarga": 0, "golpes": 2, "hit": 88.0, "crit": 20.0, "tipos": ["Melee"], "props": ["True Strike"], "aplica": {"enemy1": [{"nome": "Internal Bleeding", "x": 1}, {"nome": "Pressure Points", "x": 1}]}},
+    {"id": "daredevil__radar_sense", "heroi": "daredevil", "nome": "Radar Sense", "icone": "assets/skills/Daredevil-Radar_Sense.webp", "custo": 10.0, "alvo": "self", "dano": 0.0, "recarga": 4, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Buff"], "props": ["Free Action", "True Strike"], "aplica": {"self": [{"nome": "Radar Sense", "x": 1}]}},
+    {"id": "daredevil__snap_kick", "heroi": "daredevil", "nome": "Snap Kick", "icone": "assets/skills/Daredevil-Snap_Kick.webp", "custo": 25.0, "alvo": "enemy1", "dano": 24.0, "recarga": 0, "golpes": 1, "hit": 91.0, "crit": 21.0, "tipos": ["Unarmed", "Melee"], "props": ["True Strike"], "aplica": {"enemy1": [{"nome": "Hobbled", "x": 1}, {"nome": "Fumbling", "x": 1}]}},
+    {"id": "daredevil__manrikigusari", "heroi": "daredevil", "nome": "Manrikigusari", "icone": "assets/skills/Daredevil-Manrikigusari.webp", "custo": 20.0, "alvo": "enemy1", "dano": 25.0, "recarga": 0, "golpes": 1, "hit": 82.0, "crit": 19.0, "tipos": ["Ranged"], "props": ["Deadly Crits", "Paragon Exploiter", "True Strike"], "aplica": {}},
+    {"id": "dr_strange__bolts_of_balthakk", "heroi": "dr_strange", "nome": "Bolts of Balthakk", "icone": "assets/skills/Dr._Strange-Bolts_of_Balthakk.webp", "custo": 19.0, "alvo": "enemy1", "dano": 39.0, "recarga": 0, "golpes": 1, "hit": 94.0, "crit": 22.0, "tipos": ["Magic", "Energy", "Ranged"], "props": [], "aplica": {"self": [{"nome": "Mystic Energy", "x": 1}]}},
+    {"id": "dr_strange__teresing_boost", "heroi": "dr_strange", "nome": "Teresing Boost", "icone": "assets/skills/Dr._Strange-Teresing_Boost.webp", "custo": 23.0, "alvo": "allyAll", "dano": 0.0, "recarga": 3, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Heal", "Magic"], "props": [], "aplica": {"self": [{"nome": "Teresing Boost", "x": 1}]}},
+    {"id": "dr_strange__vapors_of_valtorr", "heroi": "dr_strange", "nome": "Vapors of Valtorr", "icone": "assets/skills/Dr._Strange-Vapors_of_Valtorr.webp", "custo": 38.0, "alvo": "enemyAll", "dano": 13.0, "recarga": 0, "golpes": 1, "hit": 100.0, "crit": 23.0, "tipos": ["Magic", "Ranged"], "props": ["Catastrophic"], "aplica": {"enemyAll": [{"nome": "Dark Void", "x": 1}]}},
+    {"id": "dr_strange__shield_of_the_seraphim", "heroi": "dr_strange", "nome": "Shield of the Seraphim", "icone": "assets/skills/Dr._Strange-Shield_of_the_Seraphim.webp", "custo": 25.0, "alvo": "ally1", "dano": 0.0, "recarga": 2, "golpes": 0, "hit": 100.0, "crit": 0, "tipos": ["Buff", "Magic"], "props": [], "aplica": {"ally1": [{"nome": "Shield of the Seraphim", "x": 1}]}}
   ]
 };
 </script>
 
 <script id="engine">
 /* ============================================================================
-   ENGINE — independente da interface e sem números de conteúdo. Recebe DATA e devolve eventos.
-   Regras: dano por golpe = max(10% do bruto, (Ataque do herói + dano do golpe por hit) − Defesa do alvo); acerto = Hit% do golpe;
-   ordem de turno por rodada = agilidade (empate sorteado); stamina +20% no início do turno do herói.
+   ENGINE — independente da interface. Recebe DATA e devolve eventos. Sem números de conteúdo.
+   Dano por hit   = (Total damage ÷ Hits) × (Ataque do atacante ÷ Defesa do alvo)      [ataque = defesa → dano puro; 50% maior → ×1,5]
+   Chance de acerto = Hit Chance do golpe × (Precisão do atacante ÷ Evasão do alvo), limitada a 100%
+   Crítico = chance do golpe; dano × config.danoCritico (provisório). Ordem de turno por rodada = Evasão (empate sorteado).
+   Stamina: +config.staminaRecupera no início do turno do herói. Status = só nomes (sem efeito) até haver as bibliotecas.
    ============================================================================ */
 function createBattle(D, teams, opts) {
   opts = opts || {};
   const rng = opts.rng || Math.random, C = D.config;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ratio = (a, b) => (b > 0 ? a / b : 1);
+  const r1 = (v) => Math.round(v * 10) / 10;
   const SK = {}; D.golpes.forEach((s) => { SK[s.id] = s; });
-  const tierVal = (k, t) => C.tiers[k].base + C.tiers[k].passo * t;
   const units = [], events = [];
   const B = { units, events, round: 0, order: [], idx: -1, current: null, phase: 'idle', winner: null, turnStamp: 0, SK };
   const ev = (o) => { o.seq = events.length; events.push(o); return o; };
@@ -283,73 +254,52 @@ function createBattle(D, teams, opts) {
   teams.forEach((team, ti) => team.forEach((hid, slot) => {
     const h = D.herois.find((x) => x.id === hid);
     if (!h) throw new Error('Herói inexistente: ' + hid);
-    if (h.bloqueado || !h.tiers) throw new Error('Herói bloqueado: ' + h.nome);
     seen[hid] = (seen[hid] || 0) + 1;
-    const t = h.tiers, hp = tierVal('hp', t.hp);
     units.push({ uid: 'u' + units.length, team: ti, slot, heroId: h.id, hero: h, name: h.nome + (count[hid] > 1 ? ' ' + seen[hid] : ''), cls: h.classe,
-      maxHp: hp, hp, base: { atk: tierVal('atk', t.atk), def: tierVal('def', t.def), agi: tierVal('agi', t.agi) },
-      stamina: C.staminaInicial, cd: {}, cdStamp: {}, effects: [], alive: true, skills: h.golpes.slice() });
+      maxHp: h.hp, hp: h.hp, stats: { atk: h.atk, def: h.def, acc: h.acc, eva: h.eva }, stamina: C.staminaInicial, cd: {}, cdStamp: {}, status: [], alive: true, skills: h.golpes.slice() });
   }));
 
   const alive = (t) => units.filter((u) => u.alive && (t == null || u.team === t));
-  const mods = (u, type) => { const r = []; u.effects.forEach((e) => (e.def.mods || []).forEach((m) => { if (m.t === type) r.push({ m, e }); })); return r; };
-  const stat = (u, k) => { let p = 0; mods(u, 'stat').forEach(({ m, e }) => { if (m.stat === k) p += m.pct * e.stacks; }); return u.base[k] * (1 + p / 100); };
-  const avgDmg = (sk) => (sk.danoMin == null || sk.danoMax == null ? 0 : (sk.danoMin + sk.danoMax) / 2);
-  const boost = (u, sk, key) => { let v = 0; mods(u, 'skillBoost').forEach(({ m, e }) => { if (m.skills.includes(sk.id)) v += (m[key] || 0) * e.stacks; }); return v; };
-  const hitChance = (u, sk) => { let c = sk.hit + boost(u, sk, 'hitPts'); mods(u, 'hitPts').forEach(({ m, e }) => { c += m.pts * e.stacks; }); return clamp(c, C.hitMin, C.hitMax); };
-  const critChance = (u, sk) => clamp(sk.crit + boost(u, sk, 'critPts'), 0, 100);
-  const critMult = (sk) => { let v = C.danoCritico; sk.props.forEach((p) => { if (D.propriedades[p] && D.propriedades[p].danoCritico) v = D.propriedades[p].danoCritico; }); return v; };
-  B.stat = stat; B.hitChance = hitChance; B.critChance = critChance; B.avgDmg = avgDmg;
+  const stat = (u, k) => u.stats[k];
+  const hitChance = (att, tgt, sk) => (sk.hit == null ? 100 : r1(clamp(sk.hit * ratio(att.stats.acc, tgt.stats.eva), 0, 100)));
+  const critChance = (sk) => clamp(sk.crit || 0, 0, 100);
+  const perHit = (att, tgt, sk) => (sk.golpes > 0 ? (sk.dano / sk.golpes) * ratio(att.stats.atk, tgt.stats.def) : 0);
+  B.stat = stat; B.hitChance = hitChance; B.critChance = critChance; B.perHit = perHit;
 
-  function removeEffect(u, e, why) { const i = u.effects.indexOf(e); if (i >= 0) { u.effects.splice(i, 1); ev({ t: 'unfx', uid: u.uid, id: e.id, nome: e.def.nome, why }); } }
-  function applyEffect(u, id, src) {
-    const def = D.efeitos[id]; if (!def || !u.alive) return;
-    u.effects.slice().forEach((e) => { if ((e.def.cancelaCom || []).includes(id)) removeEffect(u, e, 'cancelado por ' + def.nome); });
-    let e = u.effects.find((x) => x.id === id);
-    if (e) { e.stacks = Math.min(def.maxAcumulos || 1, e.stacks + 1); e.remaining = def.duracao; e.stamp = B.turnStamp; e.refreshed = true; }
-    else { e = { id, def, stacks: 1, remaining: def.duracao, stamp: B.turnStamp, refreshed: true, shieldLeft: def.escudo ? def.escudo.absorve : null }; u.effects.push(e); }
-    if (def.escudo) e.shieldLeft = def.escudo.absorve;
-    ev({ t: 'fx', uid: u.uid, id, nome: def.nome, tipo: def.tipo, stacks: e.stacks, src: src ? src.uid : null });
+  function applyStatus(u, st, src) {
+    if (!u.alive) return;
+    let s = u.status.find((x) => x.nome === st.nome);
+    if (s) s.stacks += st.x; else { s = { nome: st.nome, stacks: st.x }; u.status.push(s); }
+    ev({ t: 'fx', uid: u.uid, nome: st.nome, stacks: s.stacks, src: src ? src.uid : null });
   }
   function checkWin() {
     const a = alive(0).length, b = alive(1).length;
     if (a && b) return;
     B.phase = 'ended'; B.winner = !a && !b ? -1 : !a ? 1 : 0; B.current = null; ev({ t: 'win', winner: B.winner });
   }
-  function dealDamage(att, tgt, amount, info) {
-    let absorbed = 0;
-    tgt.effects.slice().forEach((e) => { if (e.shieldLeft != null && amount > 0) { const t = Math.min(amount, e.shieldLeft); e.shieldLeft -= t; amount -= t; absorbed += t; if (e.shieldLeft <= 0) removeEffect(tgt, e, 'escudo esgotado'); } });
-    tgt.hp = Math.max(0, tgt.hp - amount);
-    ev(Object.assign({ t: 'dmg', src: att ? att.uid : null, tgt: tgt.uid, amount, absorbed, hpAfter: tgt.hp }, info || {}));
-    if (tgt.hp <= 0 && tgt.alive) { tgt.alive = false; tgt.effects = []; ev({ t: 'defeat', uid: tgt.uid }); checkWin(); }
-  }
   function resolveHit(att, tgt, sk) {
-    const chance = hitChance(att, sk);
+    const chance = hitChance(att, tgt, sk);
     if (!(rng() * 100 < chance)) { ev({ t: 'miss', src: att.uid, tgt: tgt.uid, chance }); return false; }
-    const crit = rng() * 100 < critChance(att, sk);
-    let raw = (stat(att, 'atk') + avgDmg(sk) / sk.golpes) * (1 + boost(att, sk, 'dmgPct') / 100);
-    let dmg = Math.max(raw * C.danoMinimoPct / 100, raw - stat(tgt, 'def'));
-    const single = sk.alvo === 'enemy1', consume = []; let taken = 0;
-    mods(tgt, 'damageTaken').forEach(({ m, e }) => { if (m.tag && !sk.tipos.includes(m.tag)) return; if (m.single && !single) return; taken += m.pct * e.stacks; if (m.consume) consume.push(e); });
-    dmg *= 1 + taken / 100; if (crit) dmg *= critMult(sk);
-    dealDamage(att, tgt, Math.max(1, Math.round(dmg)), { crit, skill: sk.id });
-    consume.forEach((e) => removeEffect(tgt, e, 'consumido'));
+    const crit = rng() * 100 < critChance(sk);
+    const amount = Math.max(0, r1(perHit(att, tgt, sk) * (crit ? C.danoCritico : 1)));
+    tgt.hp = r1(Math.max(0, tgt.hp - amount));
+    ev({ t: 'dmg', src: att.uid, tgt: tgt.uid, amount, crit, skill: sk.id, hpAfter: tgt.hp });
+    if (tgt.hp <= 0 && tgt.alive) { tgt.alive = false; ev({ t: 'defeat', uid: tgt.uid }); checkWin(); }
     return true;
   }
-  function executeSkill(u, sk, targets, ctx) {
-    ev({ t: 'skill', src: u.uid, skill: sk.id, nome: sk.nome, targets: targets.map((x) => x.uid), counter: !!ctx.counter });
-    const hostile = sk.alvo === 'enemy1' || sk.alvo === 'enemyAll', dmgSkill = hostile && sk.golpes > 0, landed = {};
-    if (dmgSkill) targets.forEach((tg) => { for (let i = 0; i < sk.golpes; i++) { if (!tg.alive) break; if (resolveHit(u, tg, sk)) landed[tg.uid] = (landed[tg.uid] || 0) + 1; } });
-    const ap = sk.aplica || {};
-    if (hostile) targets.forEach((tg) => { if (tg.alive && (!dmgSkill || landed[tg.uid])) (ap[sk.alvo] || []).forEach((id) => applyEffect(tg, id, u)); });
-    else if (sk.alvo === 'ally1' || sk.alvo === 'allyAll') targets.forEach((tg) => (ap[sk.alvo] || []).forEach((id) => applyEffect(tg, id, u)));
-    (ap.self || []).forEach((id) => applyEffect(u, id, u));
-    if (hostile && !ctx.counter) targets.forEach((r) => {
-      if (!r.alive || !u.alive) return;
-      r.effects.filter((e) => e.def.contraGolpe).forEach((e) => { const cs = SK[e.def.contraGolpe]; if (cs && u.alive) { ev({ t: 'counter', src: r.uid, tgt: u.uid, nome: cs.nome }); executeSkill(r, cs, [u], { counter: true }); } });
-    });
+  function executeSkill(u, sk, targets) {
+    ev({ t: 'skill', src: u.uid, skill: sk.id, nome: sk.nome, targets: targets.map((x) => x.uid) });
+    const hostile = sk.alvo === 'enemy1' || sk.alvo === 'enemyAll', landed = {};
+    if (hostile && sk.golpes > 0) targets.forEach((tg) => { for (let i = 0; i < sk.golpes; i++) { if (!tg.alive) break; if (resolveHit(u, tg, sk)) landed[tg.uid] = (landed[tg.uid] || 0) + 1; } });
+    const ap = sk.aplica || {}, ok = (tg) => tg.alive && (!hostile || sk.golpes === 0 || landed[tg.uid]);
+    /* cada grupo de efeitos vale por si, independente do alvo do golpe (ex.: atacar todos os inimigos e buffar todos os aliados).
+       Em golpes que causam dano, status em inimigos só entra em quem foi acertado. */
+    const into = (list, tgts) => (list || []).length && tgts.forEach((tg) => list.forEach((st) => applyStatus(tg, st, u)));
+    if (sk.alvo === 'enemy1' || sk.alvo === 'ally1') into(ap[sk.alvo], targets.filter(ok));
+    into(ap.enemyAll, (sk.alvo === 'enemyAll' ? targets : alive(1 - u.team)).filter(ok));
+    into(ap.allyAll, alive(u.team));
+    into(ap.self, [u]);
   }
-  function protector(team, except) { return alive(team).find((x) => x !== except && x.effects.some((e) => e.def.protege)); }
   function validTargets(u, sk) {
     if (sk.alvo === 'enemy1') return alive(1 - u.team).map((x) => x.uid);
     if (sk.alvo === 'ally1') return alive(u.team).map((x) => x.uid);
@@ -360,9 +310,8 @@ function createBattle(D, teams, opts) {
     switch (sk.alvo) {
       case 'self': return [u];
       case 'allyAll': return alive(u.team);
-      case 'ally1': return [find(pick)];
-      case 'enemy1': { let t = find(pick); const p = protector(t.team, t); if (p) { ev({ t: 'protect', uid: p.uid, tgt: t.uid }); t = p; } return [t]; }
-      case 'enemyAll': { const es = alive(1 - u.team), p = protector(1 - u.team); if (p) { ev({ t: 'protect', uid: p.uid, tgt: null }); return [p]; } /* área: só o protetor é atingido; os aliados ficam protegidos */ return es; }
+      case 'enemyAll': return alive(1 - u.team);
+      case 'ally1': case 'enemy1': return [find(pick)];
     }
     return [];
   }
@@ -379,7 +328,6 @@ function createBattle(D, teams, opts) {
   };
   function endTurn(u) {
     Object.keys(u.cd).forEach((k) => { if (u.cd[k] > 0 && u.cdStamp[k] !== B.turnStamp) u.cd[k]--; });
-    u.effects.slice().forEach((e) => { if (e.remaining != null && e.stamp !== B.turnStamp) { e.remaining--; if (e.remaining <= 0) removeEffect(u, e, 'expirou'); } });
     B.phase = 'idle'; B.current = null;
   }
   B.act = function (skillId, targetUid) {
@@ -391,10 +339,8 @@ function createBattle(D, teams, opts) {
     const start = events.length, sk = opt.skill;
     u.stamina -= sk.custo; ev({ t: 'stamina', uid: u.uid, value: u.stamina });
     if (sk.recarga > 0) { u.cd[sk.id] = sk.recarga; u.cdStamp[sk.id] = B.turnStamp; }
-    executeSkill(u, sk, resolveTargets(u, sk, targetUid), {});
+    executeSkill(u, sk, resolveTargets(u, sk, targetUid));
     if (B.phase === 'ended') return events.slice(start);
-    const free = u.alive && sk.props.some((p) => D.propriedades[p] && D.propriedades[p].turnoLivre);
-    if (free && B.options().some((o) => o.ok)) { ev({ t: 'free', uid: u.uid }); return events.slice(start); }
     endTurn(u); B.next(); return events.slice(start);
   };
   B.pass = function () {
@@ -403,29 +349,23 @@ function createBattle(D, teams, opts) {
   };
   function newRound() {
     B.round++;
-    B.order = alive().map((u) => ({ u, k: stat(u, 'agi') + rng() * 1 })).sort((a, b) => b.k - a.k).map((x) => x.u);
+    B.order = alive().map((u) => ({ u, k: stat(u, 'eva') + rng() * 0.5 })).sort((a, b) => b.k - a.k).map((x) => x.u);
     B.idx = -1; ev({ t: 'round', n: B.round, order: B.order.map((u) => u.uid) });
-  }
-  function endRound() {
-    alive().forEach((u) => u.effects.slice().forEach((e) => { if (e.def.renovaPorRodada) { if (!e.refreshed) removeEffect(u, e, 'não renovado na rodada'); else e.refreshed = false; } }));
   }
   B.next = function () {
     if (B.phase === 'ended') return;
     if (B.phase === 'action') throw new Error('O herói ativo ainda precisa agir.');
     for (let guard = 0; guard < 100; guard++) {
-      if (B.idx + 1 >= B.order.length) { if (B.round > 0) endRound(); newRound(); }
+      if (B.idx + 1 >= B.order.length) newRound();
       const u = B.order[++B.idx]; if (!u.alive) continue;
       B.turnStamp++; B.current = u;
       u.stamina = Math.min(100, u.stamina + C.staminaRecupera); ev({ t: 'turn', uid: u.uid, round: B.round, stamina: u.stamina });
-      u.effects.slice().forEach((e) => { if (e.def.dot && u.alive) dealDamage(null, u, Math.max(1, Math.round(u.maxHp * e.def.dot.pctVidaMax / 100) * e.stacks), { dot: e.def.nome }); });
-      if (B.phase === 'ended') return;
-      if (u.alive) { B.phase = 'action'; return; }
-      B.current = null;
+      B.phase = 'action'; return;
     }
   };
   B.runAuto = function (maxActions) {
     let n = 0;
-    while (B.phase === 'action' && n++ < (maxActions || 2000)) {
+    while (B.phase === 'action' && n++ < (maxActions || 3000)) {
       const ok = B.options().filter((o) => o.ok);
       if (!ok.length) { B.pass(); continue; }
       const o = ok[Math.floor(rng() * ok.length)];
@@ -452,14 +392,13 @@ function createBattle(D, teams, opts) {
   function art(src, label, cls) {
     const d = el('div', 'art ' + (cls || '')); d.style.setProperty('--c', 'var(--c-' + (label.cls || 'Generalist') + ')');
     d.innerHTML = '<span>' + esc(label.text) + '</span>';
-    if (src) { /* tenta webp, png, jpg, jpeg, na ordem; o que existir em assets/ é usado (a extensão no dado é ignorada) */
-      const base = src.replace(/\.\w+$/, ''), exts = ['webp', 'png', 'jpg', 'jpeg']; let k = 0;
-      const i = new Image(); i.alt = ''; i.onerror = () => { if (++k < exts.length) i.src = base + '.' + exts[k]; else i.remove(); }; i.src = base + '.' + exts[0]; d.appendChild(i); }
+    if (src) { /* tenta webp, png, jpg, jpeg (e, se o nome tiver apóstrofo, também sem ele); a extensão escrita no dado é ignorada */
+      const base = src.replace(/\.\w+$/, ''), bases = base.includes("'") ? [base, base.replace(/'/g, '')] : [base], cand = [];
+      bases.forEach((b) => ['webp', 'png', 'jpg', 'jpeg'].forEach((x) => cand.push(b + '.' + x))); let k = 0;
+      const i = new Image(); i.alt = ''; i.onerror = () => { if (++k < cand.length) i.src = cand[k]; else i.remove(); }; i.src = cand[0]; d.appendChild(i); }
     return d;
   }
   const chip = (txt, kind, title) => '<span class="chip ' + kind + '" title="' + esc(title || '') + '">' + esc(txt) + '</span>';
-  const fxChip = (id) => { const e = D.efeitos[id]; return chip(e.nome, e.tipo, e.desc + (e.duracao ? ' (' + e.duracao + ' turnos)' : '')); };
-  const propChip = (id) => chip(D.propriedades[id].nome, 'prop', D.propriedades[id].desc);
 
   /* ---------- navegação ---------- */
   function view(v) { ['sel', 'bat', 'dat'].forEach((x) => { $('#v-' + x).hidden = x !== v; }); $$('header nav button').forEach((b) => b.classList.toggle('on', b.dataset.v === v)); if (v === 'dat') renderData(); }
@@ -501,7 +440,7 @@ function createBattle(D, teams, opts) {
     pk.innerHTML = ''; inf.innerHTML = ''; pk.classList.toggle('flip', at === 1);
     if (h) {
       pk.appendChild(art(h.portrait, { text: h.nome, cls: h.classe }));
-      const who = el('div', 'who', '<h2>' + esc(h.nome) + '</h2><span class="cls" style="--c:var(--c-' + h.classe + ')">' + h.classe + '</span>');
+      const who = el('div', 'who', '<h2>' + esc(h.nome) + '</h2><span class="cls" style="--c:var(--c-' + h.classe + ')">' + h.classe + '</span><div class="hint">HP ' + h.hp + ' · ATK ' + h.atk + ' · DEF ' + h.def + ' · PRE ' + h.acc + ' · EVA ' + h.eva + '</div>');
       inf.appendChild(who);
       const sks = el('div', 'sks');
       h.golpes.forEach((g) => { const sk = SKM[g]; if (!sk) return; const b = el('div', 'sk1'); b.title = sk.nome; b.appendChild(art(sk.icone, { text: sk.nome.split(' ').map((w) => w[0]).join(''), cls: h.classe })); b.appendChild(el('div', '', esc(sk.nome))); sks.appendChild(b); });
@@ -546,13 +485,12 @@ function createBattle(D, teams, opts) {
     B.units.forEach((u) => {
       const d = node(u.uid), v = shown[u.uid], p = v.hp / u.maxHp * 100;
       const bar = $('.hp i', d); bar.style.width = p + '%'; bar.className = p < 25 ? 'crit' : p < 50 ? 'low' : '';
-      $('.h', d).textContent = Math.round(v.hp) + ' / ' + u.maxHp; $('.st i', d).style.width = v.st + '%'; $('.s', d).textContent = Math.round(v.st) + '%';
-      $('.fx', d).innerHTML = u.effects.map((e) => { const x = e.def; return chip(x.nome + (e.stacks > 1 ? ' ×' + e.stacks : '') + (e.remaining != null ? ' ' + e.remaining : ''), x.tipo, x.desc); }).join('');
+      $('.h', d).textContent = Math.round(v.hp * 10) / 10 + ' / ' + u.maxHp; $('.st i', d).style.width = v.st + '%'; $('.s', d).textContent = Math.round(v.st) + '%';
+      $('.fx', d).innerHTML = u.status.map((s) => chip(s.nome + (s.stacks > 1 ? ' ×' + s.stacks : ''), 'type', 'Status sem efeito por enquanto (biblioteca futura)')).join('');
       d.classList.toggle('cur', B.current === u); d.classList.toggle('dead', !u.alive);
     });
-    // ordem de turnos da rodada
-    const o = $('#order'); o.innerHTML = '<span class="lbl">Rodada ' + B.round + ' — ordem por agilidade:</span>';
-    B.order.forEach((u, i) => { const n = el('div', 'o t' + u.team + (B.current === u ? ' cur' : i < B.idx || (i === B.idx && B.current !== u) ? ' done' : '') + (u.alive ? '' : ' dead')); n.title = u.name + ' (agi ' + Math.round(B.stat(u, 'agi')) + ')'; n.appendChild(art(u.hero.smallportrait, { text: u.name.split(' ')[0], cls: u.cls })); o.appendChild(n); });
+    const o = $('#order'); o.innerHTML = '<span class="lbl">Rodada ' + B.round + ' — ordem por Evasão:</span>';
+    B.order.forEach((u, i) => { const n = el('div', 'o t' + u.team + (B.current === u ? ' cur' : i < B.idx || (i === B.idx && B.current !== u) ? ' done' : '') + (u.alive ? '' : ' dead')); n.title = u.name + ' (evasão ' + B.stat(u, 'eva') + ')'; n.appendChild(art(u.hero.smallportrait, { text: u.name.split(' ')[0], cls: u.cls })); o.appendChild(n); });
     renderSkills();
   }
   function renderSkills() {
@@ -568,16 +506,16 @@ function createBattle(D, teams, opts) {
     });
   }
   const ALVO = { enemy1: '1 inimigo', enemyAll: 'todos os inimigos', ally1: '1 aliado', allyAll: 'todos os aliados', self: 'si próprio' };
+  const stTxt = (l) => l.map((x) => chip(x.nome + (x.x > 1 ? ' ×' + x.x : ''), 'type')).join('');
   function skillDetail(s) {
     const ap = s.aplica || {}, G = { enemy1: '1 inimigo', enemyAll: 'Todos os inimigos', ally1: '1 aliado', allyAll: 'Todos os aliados', self: 'Si próprio' };
-    const dmg = s.danoMin == null ? 'n/a (0)' : (s.danoMin + '–' + s.danoMax + ' → média ' + (s.danoMin + s.danoMax) / 2);
-    $('#detail').innerHTML = '<b>' + esc(s.nome) + '</b><div class="kv"><span>Stamina</span><span>' + s.custo + '%</span><span>Alvo</span><span>' + ALVO[s.alvo] + '</span><span>Dano total</span><span>' + dmg + '</span><span>Nº de golpes</span><span>' + s.golpes + '</span><span>Hit / Crit</span><span>' + (s.hit == null ? '—' : s.hit + '% / ' + s.crit + '%') + '</span><span>Recarga</span><span>' + (s.recarga || '—') + '</span><span>Tipos</span><span>' + s.tipos.map((t) => chip(t, 'type')).join('') + '</span><span>Propriedades</span><span>' + (s.props.map(propChip).join('') || '—') + '</span></div>' +
-      Object.keys(ap).map((g) => '<div>' + G[g] + ': ' + ap[g].map(fxChip).join('') + '</div>').join('') + '<p class="hint">' + esc(s.obs) + '</p>';
+    $('#detail').innerHTML = '<b>' + esc(s.nome) + '</b><div class="kv"><span>Stamina</span><span>' + s.custo + '%</span><span>Alvo</span><span>' + ALVO[s.alvo] + '</span><span>Dano total</span><span>' + s.dano + '</span><span>Nº de hits</span><span>' + s.golpes + '</span><span>Hit / Crit</span><span>' + (s.hit == null ? '—' : s.hit + '% / ' + s.crit + '%') + '</span><span>Recarga</span><span>' + (s.recarga || '—') + '</span><span>Tipos</span><span>' + s.tipos.map((t) => chip(t, 'type')).join('') + '</span><span>Propriedades</span><span>' + (s.props.map((p) => chip(p, 'prop', 'Sem efeito por enquanto')).join('') || '—') + '</span></div>' +
+      Object.keys(ap).map((g) => '<div>' + G[g] + ': ' + stTxt(ap[g]) + '</div>').join('');
   }
   function onUnit(uid) {
     if (picking && picking.valid.includes(uid)) { const o = picking; picking = null; run(() => B.act(o.skill.id, uid)); return; }
-    const u = U(uid), st = (k) => Math.round(B.stat(u, k));
-    $('#detail').innerHTML = '<b>' + esc(u.name) + '</b> <span class="cls" style="--c:var(--c-' + u.cls + ')">' + u.cls + '</span><div class="kv"><span>HP</span><span>' + Math.round(u.hp) + ' / ' + u.maxHp + '</span><span>Ataque</span><span>' + st('atk') + '</span><span>Defesa</span><span>' + st('def') + '</span><span>Agilidade</span><span>' + st('agi') + '</span><span>Afiliações</span><span>' + (esc(u.hero.afiliacoes.join(', ')) || 'pendente') + '</span><span>Efeitos</span><span>' + (u.effects.map((e) => fxChip(e.id)).join('') || '—') + '</span></div>';
+    const u = U(uid), st = (k) => B.stat(u, k);
+    $('#detail').innerHTML = '<b>' + esc(u.name) + '</b> <span class="cls" style="--c:var(--c-' + u.cls + ')">' + u.cls + '</span><div class="kv"><span>HP</span><span>' + u.hp + ' / ' + u.maxHp + '</span><span>Ataque</span><span>' + st('atk') + '</span><span>Defesa</span><span>' + st('def') + '</span><span>Precisão</span><span>' + st('acc') + '</span><span>Evasão</span><span>' + st('eva') + '</span><span>Afiliações</span><span>' + (esc(u.hero.afiliacoes.join(', ')) || 'pendente') + '</span><span>Status</span><span>' + (u.status.map((x) => chip(x.nome + (x.stacks > 1 ? ' ×' + x.stacks : ''), 'type')).join('') || '—') + '</span></div>';
   }
   function choose(o) {
     if (busy) return;
@@ -595,14 +533,10 @@ function createBattle(D, teams, opts) {
       switch (e.t) {
         case 'round': t = '=== Rodada ' + e.n + ' ===  ' + e.order.map(nm).join(' › '); c = 'sy'; break;
         case 'turn': t = 'Vez de ' + nm(e.uid); c = 'sy'; break;
-        case 'skill': t = nm(e.src) + (e.counter ? ' contra-ataca com ' : ' usa ') + e.nome; break;
-        case 'dmg': t = e.dot ? nm(e.tgt) + ' sofre ' + e.amount + ' de ' + e.dot : nm(e.tgt) + ' sofre ' + e.amount + (e.crit ? ' (CRÍTICO)' : '') + (e.absorbed ? ' (' + e.absorbed + ' absorvido)' : ''); c = 'dm'; break;
+        case 'skill': t = nm(e.src) + ' usa ' + e.nome; break;
+        case 'dmg': t = nm(e.tgt) + ' sofre ' + e.amount + (e.crit ? ' (CRÍTICO)' : ''); c = 'dm'; break;
         case 'miss': t = nm(e.src) + ' erra ' + nm(e.tgt) + ' (' + e.chance + '%)'; break;
         case 'fx': t = nm(e.uid) + ' ← ' + e.nome + (e.stacks > 1 ? ' ×' + e.stacks : ''); c = 'ef'; break;
-        case 'unfx': t = nm(e.uid) + ' perde ' + e.nome + ' (' + e.why + ')'; c = 'ef'; break;
-        case 'protect': t = nm(e.uid) + ' protege os aliados'; c = 'sy'; break;
-        case 'counter': t = nm(e.src) + ' reage: ' + e.nome; c = 'sy'; break;
-        case 'free': t = nm(e.uid) + ' ganha ação livre (Quick Action)'; c = 'sy'; break;
         case 'pass': t = nm(e.uid) + ' passa o turno'; break;
         case 'defeat': t = nm(e.uid) + ' foi derrotado!'; c = 'df'; break;
         case 'win': t = e.winner < 0 ? 'Empate!' : 'Equipe ' + 'AB'[e.winner] + ' venceu!'; c = 'df'; break;
@@ -617,7 +551,7 @@ function createBattle(D, teams, opts) {
     for (const e of evs) {
       logEvents([e]);
       if (e.t === 'skill') { await anim(e.src, 'lunge' + U(e.src).team, 450); }
-      else if (e.t === 'dmg') { shown[e.tgt].hp = e.hpAfter; floater(e.tgt, e.amount ? '-' + e.amount : 'ABS', e.dot ? 'dot' : e.crit ? 'crit' : e.amount ? '' : 'abs'); if (!e.dot) anim(e.tgt, 'shake', 350); refresh(); await sleep(260); }
+      else if (e.t === 'dmg') { shown[e.tgt].hp = e.hpAfter; floater(e.tgt, '-' + e.amount, e.crit ? 'crit' : ''); anim(e.tgt, 'shake', 350); refresh(); await sleep(260); }
       else if (e.t === 'miss') { floater(e.tgt, 'ERROU', 'miss'); await sleep(250); }
       else if (e.t === 'fx') { floater(e.uid, e.nome, 'txt'); refresh(); await sleep(120); }
       else if (e.t === 'stamina') { shown[e.uid].st = e.value; refresh(); }
@@ -630,20 +564,14 @@ function createBattle(D, teams, opts) {
 
   /* ---------- dados (leitura das tabelas) ---------- */
   let tab = 'herois';
-  const kv = (o) => Object.entries(o || {}).map(([k, v]) => k + ': ' + v.join(',')).join(' | ');
+  const stNames = (l) => (l || []).map((x) => x.nome + (x.x > 1 ? ' x' + x.x : '')).join(', ');
   const TABLES = {
-    herois: { nome: 'Heróis', hint: 'Tiers (1–6) vêm das barras da wiki; valores = escala própria (config.tiers).', rows: () => {
-      const hd = ['ID', 'Nome', 'Classe', 'Afiliações', 'Tier HP', 'Tier ATK', 'Tier DEF', 'Tier AGI (evasão)', 'HP', 'Ataque', 'Defesa', 'Agilidade', 'Passivas', 'Golpes', 'Bloqueado', 'Motivo', 'Retrato', 'Arte', 'Fonte', 'Obs'];
-      const tv = (k, t) => D.config.tiers[k].base + D.config.tiers[k].passo * t;
-      return [hd].concat(D.herois.map((h) => { const t = h.tiers; return [h.id, h.nome, h.classe, h.afiliacoes.join(' | ') || 'pendente', t ? t.hp : '', t ? t.atk : '', t ? t.def : '', t ? t.agi : '', t ? tv('hp', t.hp) : '', t ? tv('atk', t.atk) : '', t ? tv('def', t.def) : '', t ? tv('agi', t.agi) : '', h.passivas.join(' | ') || '—', h.golpes.join(' | ') || '—', h.bloqueado ? 'sim' : 'nao', h.motivo || '', h.face, h.smallportrait, h.portrait, h.fonte, h.obs]; }));
-    } },
-    golpes: { nome: 'Golpes', hint: 'Dano = média de min/max (n/a = 0). "Aplica" cita só ids das bibliotecas.', rows: () => [['ID', 'Herói', 'Golpe', 'Ícone', 'Stamina %', 'Alvo', 'Dano mín', 'Dano máx', 'Dano médio', 'Nº golpes', 'Hit %', 'Crit %', 'Tipos', 'Propriedades (azul)', 'Aplica (debuffs vermelho / buffs verde)', 'Recarga', 'Obs']].concat(D.golpes.map((s) => [s.id, s.heroi, s.nome, s.icone, s.custo, s.alvo, s.danoMin == null ? 'n/a' : s.danoMin, s.danoMax == null ? 'n/a' : s.danoMax, s.danoMin == null ? 0 : (s.danoMin + s.danoMax) / 2, s.golpes, s.hit == null ? '' : s.hit, s.crit == null ? '' : s.crit, s.tipos.join(' | '), s.props.join(' | ') || '—', kv(s.aplica) || '—', s.recarga, s.obs])) },
-    debuffs: { nome: 'Debuffs (vermelho)', hint: 'Células marcadas = valor provisório (a wiki não informa).', rows: () => effRows('debuff') },
-    buffs: { nome: 'Buffs (verde)', hint: 'Células marcadas = valor provisório (a wiki não informa).', rows: () => effRows('buff') },
-    props: { nome: 'Propriedades (azul)', hint: '', rows: () => [['ID', 'Nome', 'Descrição', 'Dados', 'Provisório']].concat(Object.entries(D.propriedades).map(([id, p]) => [id, p.nome, p.desc, JSON.stringify(Object.fromEntries(Object.entries(p).filter(([k]) => !['nome', 'desc', 'provisorio'].includes(k)))), (p.provisorio || []).join(' | ')])) },
+    herois: { nome: 'Heróis', hint: 'Vem de dados/maa.xlsx (aba Characters).', rows: () => [['ID', 'Nome', 'Classe', 'Health', 'Stamina', 'Attack', 'Defense', 'Accuracy', 'Evasion', 'Organization', 'Effects', 'Golpes', 'Bio']].concat(D.herois.map((h) => [h.id, h.nome, h.classe, h.hp, h.stamina, h.atk, h.def, h.acc, h.eva, h.afiliacoes.join(', ') || 'pendente', h.passivas.join(', ') || '—', h.golpes.length, h.bio || 'pendente'])) },
+    golpes: { nome: 'Golpes', hint: 'Vem de dados/maa.xlsx (aba Skills). Dano por hit = Total damage ÷ Hits × Ataque ÷ Defesa.', rows: () => [['ID', 'Herói', 'Golpe', 'Ícone', 'Stamina %', 'Alvo', 'Total damage', 'Cooldown', 'Hits', 'Hit %', 'Crit %', 'Tipos', 'Propriedades', 'One Enemy / One Ally', 'Self', 'All (enemies/allies)']].concat(D.golpes.map((s) => [s.id, s.heroi, s.nome, s.icone, s.custo, s.alvo, s.dano, s.recarga, s.golpes, s.hit == null ? '' : s.hit, s.crit, s.tipos.join(' '), s.props.join(', ') || '—', stNames((s.aplica.enemy1 || []).concat(s.aplica.ally1 || [])) || '—', stNames(s.aplica.self) || '—', stNames((s.aplica.enemyAll || []).concat(s.aplica.allyAll || [])) || '—'])) },
+    status: { nome: 'Status usados', hint: 'Nomes de debuffs/buffs citados nos golpes. Por enquanto só aparecem como etiqueta, sem efeito (a biblioteca vem depois).', rows: () => { const m = {}; D.golpes.forEach((s) => Object.values(s.aplica).forEach((l) => l.forEach((x) => { (m[x.nome] = m[x.nome] || new Set()).add(s.nome); }))); return [['Status', 'Golpes que aplicam']].concat(Object.entries(m).sort().map(([k, v]) => [k, [...v].join(', ')])); } },
+    props: { nome: 'Propriedades usadas', hint: 'Special Properties citadas nos golpes. Sem efeito por enquanto.', rows: () => { const m = {}; D.golpes.forEach((s) => s.props.forEach((p) => { (m[p] = m[p] || new Set()).add(s.nome); })); return [['Propriedade', 'Golpes']].concat(Object.entries(m).sort().map(([k, v]) => [k, [...v].join(', ')])); } },
     config: { nome: 'Config / Classes', hint: 'Classes ainda sem vantagens/desvantagens (futuro).', rows: () => [['Chave', 'Valor']].concat(Object.entries(D.config).map(([k, v]) => [k, JSON.stringify(v)]), Object.entries(D.classes).map(([k, v]) => ['classe ' + k, JSON.stringify(v)])) }
   };
-  function effRows(tipo) { return [['ID', 'Nome', 'Duração (turnos)', 'Descrição', 'Dados (mods/escudo/etc.)', 'Provisório']].concat(Object.entries(D.efeitos).filter(([, e]) => e.tipo === tipo).map(([id, e]) => [id, e.nome, e.duracao == null ? 'até remover' : e.duracao, e.desc, JSON.stringify(Object.fromEntries(Object.entries(e).filter(([k]) => !['nome', 'tipo', 'duracao', 'desc', 'provisorio'].includes(k)))), (e.provisorio || []).join(' | ')])); }
   function renderData() {
     const t = $('#datTabs'); t.innerHTML = '';
     Object.keys(TABLES).forEach((k) => { const b = el('button', k === tab ? 'on' : '', TABLES[k].nome); b.onclick = () => { tab = k; renderData(); }; t.appendChild(b); });
