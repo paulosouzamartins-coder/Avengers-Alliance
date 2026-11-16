@@ -71,9 +71,14 @@ test('status: aplicado só em quem foi acertado; "Bleeding x2" empilha 2', () =>
   const b = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0));
   const w = unit(b, 'wolverine'); until(b, w.uid); const t = b.units.find((u) => u.team === 1);
   b.act('wolverine__adamantium_claws', t.uid);
-  assert.deepStrictEqual(X(t.status), [{ nome: 'Ravaged', stacks: 1 }, { nome: 'Bleeding', stacks: 2 }]);
+  assert.deepStrictEqual(X(t.status), [{ nome: 'Ravaged', stacks: 1, tipo: 'debuff' }, { nome: 'Bleeding', stacks: 2, tipo: 'debuff' }]);
   const b2 = mk(['wolverine', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99)), w2 = unit(b2, 'wolverine'); until(b2, w2.uid); const t2 = b2.units.find((u) => u.team === 1); t2.stats.eva = 1000;
   b2.act('wolverine__adamantium_claws', t2.uid); assert.strictEqual(t2.status.length, 0, 'errou → sem status');
+});
+test('status: vindo de inimigo = debuff, em si/aliados = buff', () => {
+  const b = mk(['black_widow', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99)), bw = unit(b, 'black_widow'); until(b, bw.uid);
+  b.act('black_widow__widowmaker', b.units.find((u) => u.team === 1).uid);
+  assert.strictEqual(bw.status[0].tipo, 'buff'); assert.strictEqual(b.units.find((u) => u.team === 1).status[0].tipo, 'debuff');
 });
 test('golpe sem hits (Widowmaker): aplica status sem rolar acerto, no alvo e em si', () => {
   const b = mk(['black_widow', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99));
@@ -106,11 +111,27 @@ test('ordem de turno por Evasão', () => {
   const ev = (u) => u.stats.eva; for (let i = 1; i < b.order.length; i++) assert.ok(ev(b.order[i - 1]) >= ev(b.order[i]) - 1e-9);
   assert.strictEqual(b.order[0].heroId, 'black_widow');
 });
-test('stamina: custo, +20% por turno e bloqueio por falta', () => {
+test('stamina: começa cheia, custo fixo exato, +10% do máximo por turno e bloqueio por falta', () => {
   const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99));
-  const a = b.current; assert.strictEqual(a.stamina, 100); b.act('hulk__titanic_hurl', null); assert.strictEqual(a.stamina, 70);
-  until(b, a.uid); assert.strictEqual(a.stamina, 90);
+  const a = b.current; assert.strictEqual(a.maxSt, 124); assert.strictEqual(a.stamina, 124);
+  b.act('hulk__titanic_hurl', null); assert.strictEqual(a.stamina, 94);   // custo fixo 30 (não é %)
+  until(b, a.uid); assert.strictEqual(a.stamina, 106.4);                  // +10% de 124
   a.stamina = 5; assert.throws(() => b.act('hulk__hulk_smash', b.units.find((u) => u.team !== a.team).uid), /Stamina insuficiente/);
+});
+test('stamina: regeneração não passa do máximo', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk']); const a = b.current; b.pass(); until(b, a.uid); assert.strictEqual(a.stamina, 124);
+});
+test('recarga: passa o turno e recupera 50% da stamina máxima (limitado ao máximo)', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk']); const a = b.current; a.stamina = 10;
+  const evs = b.recharge(); assert.strictEqual(a.stamina, 72); assert.ok(evs.some((e) => e.t === 'recharge' && e.gained === 62));
+  assert.notStrictEqual(b.current.uid, a.uid);
+  until(b, a.uid); assert.strictEqual(a.stamina, 84.4);   // 72 + 12.4 de regeneração
+  a.stamina = 100; b.recharge(); assert.strictEqual(a.stamina, 124);
+});
+test('recarga: só na fase de ação', () => {
+  const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.01), (D) => D.golpes.forEach((s) => { s.dano = 9999; })); const a = b.current;
+  while (b.phase !== 'ended') b.act(b.options().find((o) => o.ok).skill.id, b.options().find((o) => o.ok).needsPick ? b.options().find((o) => o.ok).valid[0] : null);
+  assert.throws(() => b.recharge(), /agir/);
 });
 test('cooldown: Titanic Hurl (3) fica indisponível nos 3 turnos seguintes do herói', () => {
   const b = mk(['hulk', 'hulk', 'hulk'], ['hulk', 'hulk', 'hulk'], seq(0.99));

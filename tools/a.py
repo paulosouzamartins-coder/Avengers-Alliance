@@ -21,11 +21,14 @@ fname = lambda t: re.sub(r'\s+', '_', t.strip())   # "Black Widow" -> Black_Wido
 wb = openpyxl.load_workbook(XLSX, data_only=True)
 H, G, avisos = [], [], []
 rows = lambda ws: [r for r in ws.iter_rows(min_row=2, values_only=True) if r[0]]
+HC = {str(c.value).strip(): i for i, c in enumerate(wb['Characters'][1]) if c.value}
 for r in rows(wb['Characters']):
-    r = list(r) + [None] * 11
+    r = list(r) + [None] * 20
+    g = lambda name: r[HC[name]] if name in HC else None
     hid = slug(r[0])
-    H.append({'id': hid, 'nome': r[0].strip(), 'classe': (r[1] or 'Generalist').strip(), 'hp': num(r[2], 0), 'stamina': num(r[3], 0), 'atk': num(r[4], 0), 'def': num(r[5], 0), 'acc': num(r[6], 0), 'eva': num(r[7], 0),
-              'afiliacoes': lst(r[8]), 'passivas': lst(r[9]), 'bio': (r[10] or '').strip(), 'golpes': [],
+    esc_ = num(g('Scale'), 1) or 1
+    H.append({'id': hid, 'nome': r[0].strip(), 'classe': (g('Class') or 'Generalist').strip(), 'hp': num(g('Health'), 0), 'stamina': num(g('Stamina'), 0), 'atk': num(g('Attack'), 0), 'def': num(g('Defense'), 0), 'acc': num(g('Accuracy'), 0), 'eva': num(g('Evasion'), 0),
+              'escala': esc_, 'pes': (lambda v: (float(v) / 100 if v not in (None, '') else None))(g('Feet')), 'afiliacoes': lst(g('Organization')), 'passivas': lst(g('Effects')), 'bio': (g('Bio') or '').strip(), 'golpes': [],
               'face': 'assets/face/' + fname(r[0]) + '_Icon_Large_1.webp', 'smallportrait': 'assets/smallportrait/' + fname(r[0]) + '_Dialogue_1.webp', 'portrait': 'assets/portrait/' + fname(r[0]) + '_Portrait_Art.webp', 'bloqueado': False})
 byname = {h['nome']: h for h in H}
 HD = {str(c.value).strip(): i for i, c in enumerate(wb['Skills'][1]) if c.value}
@@ -45,9 +48,9 @@ for r in rows(wb['Skills']):
     sid = h['id'] + '__' + slug(r[1])
     h['golpes'].append(sid)
     G.append({'id': sid, 'heroi': h['id'], 'nome': r[1].strip(), 'icone': 'assets/skills/' + fname(h['nome']) + '-' + fname(r[1]) + '.webp', 'custo': num(r[2], 0), 'alvo': alvo, 'dano': num(r[4], 0), 'recarga': int(num(r[5], 0)), 'golpes': int(num(r[6], 0)),
-              'hit': pct(r[7]), 'crit': pct(r[8]) or 0, 'tipos': str(r[9]).split() if r[9] else [], 'props': lst(r[10]), 'aplica': ap})
+              'hit': pct(r[7]), 'crit': pct(r[8]) or 0, 'somCast': str(col('Cast Sound') or '').strip(), 'somHit': str(col('Hit Sound') or '').strip(), 'tipos': str(r[9]).split() if r[9] else [], 'props': lst(r[10]), 'aplica': ap})
 cfg = {'modos': {'pve': '1 jogador x máquina (3 heróis do jogador)', 'pvp': '1 jogador x 1 jogador (3 heróis cada)', 'pvp6': '3 jogadores x 3 jogadores (1 herói por jogador)'},
-       'staminaInicial': 100, 'staminaRecupera': 20, 'danoCritico': 1.5}
+       'staminaRecupera': 10, 'staminaRecarga': 50, 'danoCritico': 1.5}   # % da stamina máxima por turno / ao usar Recarga
 cls = {c: {'vantagens': [], 'desvantagens': []} for c in ['Blaster', 'Bruiser', 'Scrapper', 'Infiltrator', 'Tactician', 'Generalist']}
 J = lambda o: json.dumps(o, ensure_ascii=False)
 out = ('<script id="data">\n/* GERADO por tools/importar.py a partir de dados/maa.xlsx — para mudar números, edite a planilha e rode o importador.\n'
